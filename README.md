@@ -91,7 +91,7 @@ If you want to know, if they are completly gone or just private now, you should 
 
 All videos which are marked as offline in database will be checked in packages of 50 videos against the youtube API. Each video which is not returned in answer, will be marked as offline. If a video is part of the answer, it will be marked as online again or as unlisted if the API reports this.
 
-##License
+## License
 Copyright (C) 2020  w0d4
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
