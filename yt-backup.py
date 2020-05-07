@@ -459,7 +459,7 @@ def get_video_infos():
 def check_videos_online_state(videos_to_check_against, local_playlist_id):
     start_time = get_current_timestamp()
     logger.debug("Getting all videos for playlist_id " + str(local_playlist_id) + " from database for video offline checking.")
-    playlist_videos_in_db = session.query(Video).filter(Video.playlist == local_playlist_id).filter(Video.online == video_status["online"]).filter(Video.downloaded is not None).all()
+    playlist_videos_in_db = session.query(Video).filter(Video.playlist == local_playlist_id).filter(Video.online == video_status["online"]).filter(Video.downloaded != None).all()
     logger.debug(str(len(playlist_videos_in_db)) + " videos are in DB for playlist")
     videos_to_check_against_ids = []
     for video in videos_to_check_against:
@@ -640,7 +640,7 @@ def generate_statistics(all_stats=False):
         log_operation(end_time - start_time, "statistics_videos_monitored", "Getting archive size via rclone")
     if "videos_downloaded" in statistics:
         start_time = get_current_timestamp()
-        number_of_videos = session.query(func.count(Video.id)).filter(Video.downloaded is not None).scalar()
+        number_of_videos = session.query(func.count(Video.id)).filter(Video.downloaded != None).scalar()
         log_statistic("videos_downloaded", str(number_of_videos))
         end_time = get_current_timestamp()
         log_operation(end_time - start_time, "statistics_videos_downloaded", "Getting archive size via rclone")
