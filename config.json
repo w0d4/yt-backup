@@ -18,6 +18,8 @@
     "binary_path": "/usr/local/bin/youtube-dl",
     "download-archive": "/home/user/archive.list",
     "video-format": "((571/272/402/337/315/313/401/336/308/400/271/335/303/299/399/137/248/334/302/298/398/247/136/333/244/135/397/332/243/134/396/331/242/133/395/330/160/394/278)[protocol!=http_dash_segments])+(bestaudio[acodec=opus]/bestaudio[protocol!=http_dash_segments])/best",
+    "naming-format": "%(uploader)s.%(upload_date)s.%(title)s.%(resolution)s.%(id)s.%(ext)s",
+    "additional-options": "--write-sub --write-auto-sub --sub-lang en,de,fr --sub-format srt/best --write-info-json --add-metadata --write-thumbnail",
     "min_sleep_interval": 5,
     "max_sleep_interval": 60,
     "proxy": "socks5://127.0.0.1:1080"

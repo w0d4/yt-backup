@@ -646,7 +646,7 @@ def generate_statistics(all_stats=False):
 
 
 def download_video(video_id, channel_name):
-    youtube_dl_command = config["youtube-dl"]["binary_path"] + " --continue " + " -4 --download-archive " + config["youtube-dl"]["download-archive"] + " --output " + config["base"]["download_dir"] + "/\"" + channel_name + "\"/\"%(uploader)s.%(upload_date)s.%(title)s.%(resolution)s.%(id)s.%(ext)s\"" + " --ignore-config" + " --ignore-errors --merge-output-format mkv --write-sub --write-auto-sub --sub-lang en,de,fr --sub-format srt/best " + " --no-overwrites" + " --restrict-filenames --format \"" + config["youtube-dl"]["video-format"] + "\" --user-agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.122 Safari/537.36\""
+    youtube_dl_command = config["youtube-dl"]["binary_path"] + " --continue " + " -4 --download-archive " + config["youtube-dl"]["download-archive"] + " --output " + config["base"]["download_dir"] + "/\"" + channel_name + "\"/\"" + config["youtube-dl"]["naming-format"] + "\"" + " --ignore-config" + " --ignore-errors --merge-output-format mkv " + " --no-overwrites" + " --restrict-filenames --format \"" + config["youtube-dl"]["video-format"] + "\" --user-agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.122 Safari/537.36\" " + config["youtube-dl"]["additional-options"]
     if config["youtube-dl"]["proxy"] != "":
         youtube_dl_command = youtube_dl_command + " --proxy " + config["youtube-dl"]["proxy"]
     youtube_dl_command = youtube_dl_command + " https://youtu.be/" + video_id
