@@ -508,15 +508,16 @@ def download_videos():
     http_429_counter = 0
     if playlist_id is None:
         if retry_403:
-            videos_not_downloaded = session.query(Video).filter(Video.downloaded is None).filter(or_(Video.online == video_status["online"], Video.online == video_status["hate_speech"], Video.online == video_status["http_403"])).filter(Video.download_required == 1)
+            videos_not_downloaded = session.query(Video).filter(Video.downloaded == None).filter(or_(Video.online == video_status["online"], Video.online == video_status["hate_speech"], Video.online == video_status["http_403"])).filter(Video.download_required == 1)
         else:
-            videos_not_downloaded = session.query(Video).filter(Video.downloaded is None).filter(or_(Video.online == video_status["online"], Video.online == video_status["hate_speech"])).filter(Video.download_required == 1)
+            videos_not_downloaded = session.query(Video).filter(Video.downloaded == None).filter(or_(Video.online == video_status["online"], Video.online == video_status["hate_speech"])).filter(Video.download_required == 1)
     else:
         playlist_internal_id = session.query(Playlist.id).filter(Playlist.playlist_id == playlist_id)
         if retry_403:
-            videos_not_downloaded = session.query(Video).filter(Video.downloaded is None).filter(Video.playlist == playlist_internal_id).filter(or_(Video.online == video_status["online"], Video.online == video_status["http_403"], Video.online == video_status["hate_speech"])).filter(Video.download_required == 1)
+            videos_not_downloaded = session.query(Video).filter(Video.downloaded == None).filter(Video.playlist == playlist_internal_id).filter(or_(Video.online == video_status["online"], Video.online == video_status["http_403"], Video.online == video_status["hate_speech"])).filter(Video.download_required == 1)
         else:
-            videos_not_downloaded = session.query(Video).filter(Video.downloaded is None).filter(Video.playlist == playlist_internal_id).filter(Video.online == video_status["online"], Video.online == video_status["hate_speech"]).filter(Video.download_required == 1)
+            videos_not_downloaded = session.query(Video).filter(Video.downloaded == None).filter(Video.playlist == playlist_internal_id).filter(Video.online == video_status["online"], Video.online == video_status["hate_speech"]).filter(Video.download_required == 1)
+    logger.info("I have " + str(len(videos_not_downloaded.all())) + " in download queue. Start downloading now.")
     for video in videos_not_downloaded:
         set_status("downloading")
         if video.copyright is None:
