@@ -3,8 +3,8 @@ Youtube Backup made easy
 
 ## What is this?
 This is a backup utility for youtube videos. Since youtube-dl works very well, yt-backup will use youtube-dl as downloader.
-Since youtube started aggressivly blocking extensive youtube-dl crawls with HTTP 429 error, I have started fetching all metadata about channels, playlists and videos via google's youtube API and using youtube-dl only for downloading videos itself.
-All metadata will be stored in a database. To be flexible at this point, I have choosen sqlalchemy as ORM. So you can use any database which is supported by sqlalchemy.
+Since youtube started aggressively blocking extensive youtube-dl crawls with HTTP 429 error, I have started fetching all metadata about channels, playlists and videos via google's youtube API and using youtube-dl only for downloading videos itself.
+All metadata will be stored in a database. To be flexible at this point, I have chosen sqlalchemy as ORM. So you can use any database which is supported by sqlalchemy.
 Databases are fine for storing stuff and getting it again, but not for visualizing things, I have created some grafana dashboards for visualizing the stats of the tool.
 Additionally, I have added support for automatic proxy restarts, in case you get a 429 error on your current IP. This option assumes, that after each comman execution, the proxy will have a new IP adress.
 
