@@ -23,6 +23,7 @@ Additionally, I have added support for automatic proxy restarts, in case you get
 2. Create user in your DBMS with write permissions for a schema
 3. If not available, configure a rclone remote. If remote points to cloud storage, I strongly recommend to add a crypt remote
 4. Edit config.json to match your system paths, database and rclone remote
+4.1. git commit your config.json, so it will not be overwritten by new ones in the repo every time you pull
 5. Put your client secret json from google into project directory and name it "client_secret.json"
 6. Add your database as datasource in grafana. Best name it yt-backup.
 
