@@ -1,0 +1,25 @@
+{
+  "database": {
+    "connection_info": "mysql+mysqldb://user:password@127.0.0.1:3306/database"
+  },
+  "base": {
+    "download_dir": "/tmp/youtube-dl",
+    "download_lockfile": "/tmp/yt-backup-lockfiles",
+    "proxy_restart_command": "docker restart proxy_container"
+  },
+  "rclone": {
+    "binary_path": "/usr/bin/rclone",
+    "config_path": "/home/user/.config/rclone/rclone.conf",
+    "move_or_copy": "move",
+    "upload_base_path": "youtube-dl",
+    "upload_target": "rclone_remote"
+  },
+  "youtube-dl": {
+    "binary_path": "/usr/local/bin/youtube-dl",
+    "download-archive": "/home/user/archive.list",
+    "video-format": "((571/272/402/337/315/313/401/336/308/400/271/335/303/299/399/137/248/334/302/298/398/247/136/333/244/135/397/332/243/134/396/331/242/133/395/330/160/394/278)[protocol!=http_dash_segments])+(bestaudio[acodec=opus]/bestaudio[protocol!=http_dash_segments])/best",
+    "min_sleep_interval": 5,
+    "max_sleep_interval": 60,
+    "proxy": "socks5://127.0.0.1:1080"
+  }
+}
