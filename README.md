@@ -89,8 +89,26 @@ If you want to know, if they are completly gone or just private now, you should 
 
 ### Verifiy all marked offline videos if they are really offline or only private
 - python3 yt-backup.py verify_offline_videos
-
 All videos which are marked as offline in database will be checked in packages of 50 videos against the youtube API. Each video which is not returned in answer, will be marked as offline. If a video is part of the answer, it will be marked as online again or as unlisted if the API reports this.
+
+### List channels with playlists
+#### For all channels
+- python3 yt-backup.py list_playlists
+#### For only one channel by username
+- python3 yt-backup.py list_playlists --username <channel name from DB>
+#### For only one channel by channel ID
+- python3 yt-backup.py list_playlists --channel_id <channel_id>
+
+### Set a download limit date for a playlist
+#### Set a specific date and time for download date limit
+python3 yt-backup.py modify_playlist --playlist_id <playlist_id> --download_from "2019-06-01 00:00:00"
+#### Remove download date limit from playlist
+python3 yt-backup.py modify_playlist --playlist_id <playlist_id> --download_from all
+#### What will happen?
+If a video has no upload date, it will be checked against youtube API to get download date.
+If a videos upload date is newer than it's playlist download date limit, download required will be set to 1. Else it will be set to 0.
+
+
 
 ## License
 Copyright (C) 2020  w0d4
