@@ -53,18 +53,18 @@ Base.metadata.create_all(engine)
 session = Session()
 
 parser = argparse.ArgumentParser(description='yt-backup')
-parser.add_argument("mode", action="store", type=str, help="Valid options: add_channel, get_playlists, get_video_infos, download_videos, run, toggle_channel_download, generate_statistics, verify_offline_videos")
+parser.add_argument("mode", action="store", type=str, help="Valid options: add_channel, get_playlists, get_video_infos, download_videos, run, toggle_channel_download, generate_statistics, verify_offline_videos, list_playlists, modify_playlist")
 parser.add_argument("--channel_id", action="store", type=str, help="Defines a channel ID to work on. Required for modes: add_channel")
 parser.add_argument("--username", action="store", type=str, help="Defines a channel name to work on. Required for modes: add_channel")
 parser.add_argument("--playlist_id", action="store", type=str, help="Defines a playlist ID to work on. Optional for modes: get_video_infos, download_videos")
+parser.add_argument("--download_from", action="store", type=str, help="Defines a date from which videos should be downloaded for a playlist. Format: yyyy-mm-dd hh:mm:ss or all")
 parser.add_argument("--retry-403", action="store_true", help="If this flag ist set, yt-backup will retry to download videos which were marked with 403 error during initial download.")
-parser.add_argument("--rclone_json_export_file", action="store", type=str, help="")
 parser.add_argument("--statistics", action="store", type=str, help="Comma seperated list which statistics should be collected during statistics run. Supported types: archive_size,videos_monitored,videos_downloaded")
 parser.add_argument("--enabled", action="store_true", help="Switch to control all modes which enables or disables things. Rquired for modes: toggle_channel_download")
 parser.add_argument("--disabled", action="store_true", help="Switch to control all modes which enables or disables things. Rquired for modes: toggle_channel_download")
 parser.add_argument("--ignore_429_lock", action="store_true", help="Ignore whether an IP was 429 blocked and continue downloading with it.")
 parser.add_argument("--debug", action="store_true")
-parser.add_argument("-V", action="version", version="%(prog)s 0.9")
+parser.add_argument("-V", action="version", version="%(prog)s 0.9.1")
 args = parser.parse_args()
 
 logger = logging.getLogger('yt-backup')
@@ -91,12 +91,12 @@ mode = args.mode
 channel_id = args.channel_id
 playlist_id = args.playlist_id
 username = args.username
-rclone_json_export_file = args.rclone_json_export_file
 statistics = args.statistics
 retry_403 = args.retry_403
 enabled = args.enabled
 disabled = args.disabled
 ignore_429_lock = args.ignore_429_lock
+download_from = args.download_from
 
 # define video status
 video_status = {"offline": 0, "online": 1, "http_403": 2, "hate_speech": 3, "unlisted": 4}
@@ -107,7 +107,7 @@ def get_current_timestamp():
     return ts
 
 
-def signal_handler():
+def signal_handler(sig, frame):
     logger.info('Catched Ctrl+C!')
     set_status("aborted")
     if os.path.exists(config["base"]["download_lockfile"]):
@@ -383,7 +383,9 @@ def get_videos_from_playlist_from_google(local_playlist_id, next_page_token):
 
 
 def get_video_infos():
-    playlists = session.query(Playlist).all()
+    playlists = session.query(Playlist)
+    if playlist_id is not None:
+        playlists = playlists.filter(Playlist.playlist_id == playlist_id)
     for playlist in playlists:
         parsed_from_api = 0
         if playlist.monitored == 0:
@@ -429,6 +431,8 @@ def get_video_infos():
                 video.video_id = video_raw["contentDetails"]["videoId"]
                 video.title = video_raw["snippet"]["title"]
                 video.description = video_raw["snippet"]["description"]
+                video.upload_date = video_raw["snippet"]["publishedAt"]
+                video.upload_date = datetime.strptime(str(video.upload_date)[0:19], '%Y-%m-%dT%H:%M:%S')
                 video.playlist = playlist.id
                 video.online = video_status["online"]
                 video.download_required = 1
@@ -446,6 +450,10 @@ def get_video_infos():
                     if video.online == video_status["offline"]:
                         logger.info("Marking video " + str(video.video_id) + " as online again.")
                         video.online = video_status["online"]
+                        videos.append(video)
+                    if video.upload_date is None:
+                        logger.info("Adding upload date to video")
+                        video.upload_date = datetime.strptime(str(video_raw["snippet"]["publishedAt"])[0:19], '%Y-%m-%dT%H:%M:%S')
                         videos.append(video)
         logger.debug("Parsed " + str(parsed_from_api) + " videos from API.")
         logger.debug(str(len(videos)))
@@ -535,6 +543,16 @@ def download_videos():
                     session.add(video)
                     session.commit()
                     continue
+        # Get the playlist object of a video. If uploaded date is older than playlist download date, skip download and set download required to 0
+        playlist = session.query(Playlist).filter(Playlist.id == video.playlist).scalar()
+        if playlist.download_from_date is not None:
+            playlist_download_date = datetime.strptime(str(playlist.download_from_date), '%Y-%m-%d %H:%M:%S')
+            video_upload_date = datetime.strptime(str(video.upload_date), '%Y-%m-%d %H:%M:%S')
+            if playlist_download_date > video_upload_date:
+                video.download_required = 0
+                session.add(video)
+                session.commit()
+                continue
         logger.info("Video " + str(video.video_id) + " - " + video.title + " is not yet downloaded. Downloading now.")
         local_channel_id = session.query(Playlist.channel_id).filter(Playlist.id == video.playlist).scalar()
         logger.debug("Video belongs to playlist " + str(local_channel_id))
@@ -821,8 +839,118 @@ def verify_offline_videos():
             video_ids_to_check = ""
 
 
+def list_playlists():
+    channels = session.query(Channel)
+    if username is not None:
+        channels = channels.filter(Channel.channel_name == username)
+    if channel_id is not None:
+        channels = channels.filter(Channel.channel_id == channel_id)
+    for channel in channels:
+        playlists = session.query(Playlist).filter(Playlist.channel_id == channel.id)
+        print(f'ID: {channel.id} Channel Name: {channel.channel_name} Youtube Channel-ID: {channel.channel_id}')
+        for playlist in playlists:
+            if playlist.download_from_date is None:
+                download_from_date = "All"
+            else:
+                download_from_date = str(playlist.download_from_date)
+            print(f'ID: {playlist.id} Playlist Name: {playlist.playlist_name} Youtube Playlist-ID: {playlist.playlist_id} Download From: {download_from_date}')
+        print('\n')
+
+
+def check_video_ids_for_upload_date(video_ids_to_check, download_date_limit=None):
+    logger.debug("Getting upload date from google for the following video ids: " + str(video_ids_to_check))
+    youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
+    request = youtube.videos().list(part="snippet", id=video_ids_to_check)
+    response = request.execute()
+    for entry in response['items']:
+        video_id = entry['id']
+        video = session.query(Video).filter(Video.video_id == video_id).scalar()
+        google_published_at = entry["snippet"]["publishedAt"]
+        video.upload_date = datetime.strptime(str(google_published_at)[0:19], '%Y-%m-%dT%H:%M:%S')
+        logger.debug("Set upload date of video " + str(video.video_id) + " to " + str(video.upload_date))
+        if download_date_limit is not None:
+            if video.upload_date >= download_date_limit:
+                logger.debug("Video " + str(video.video_id) + " uploaded date " + str(video.upload_date) + " is newer then given limit date " + str(download_date_limit) + ". Setting download required for video to 1")
+                video.download_required = 1
+            else:
+                video.download_required = 0
+                logger.debug("Video " + str(video.video_id) + " uploaded date " + str(video.upload_date) + " is older then given limit date " + str(download_date_limit) + ". Setting download required for video to 0")
+            session.add(video)
+    session.commit()
+
+
+
+def modify_playlist():
+    if playlist_id is None:
+        logger.error("--playlist-id is needed. If you don't know your playlist ID, try the \"python3 yt-backup.py list_playlists\" command.")
+        return None
+    playlist = session.query(Playlist).filter(Playlist.playlist_id == playlist_id).scalar()
+    if playlist is None:
+        logger.error("Given playlist-id is not in database. Please find correct one with \"python3 yt-backup.py list_playlists\" command or add channel with playlist first.")
+        return None
+    if download_from == "all":
+        playlist.download_from_date = None
+        videos = session.query(Video).filter(Video.playlist == playlist.id)
+        for video in videos:
+            video.download_required = 1
+            session.add(video)
+        session.commit()
+    if download_from is not None and download_from != "all":
+        playlist.download_from_date = datetime.strptime(str(download_from), '%Y-%m-%d %H:%M:%S')
+        videos = session.query(Video).filter(Video.playlist == playlist.id)
+        videos_without_upload_date = []
+        for video in videos:
+            if video.upload_date is None:
+                logger.debug("Video " + str(video.video_id) + " does not have an upload date. Have to check later.")
+                videos_without_upload_date.append(video)
+                continue
+            else:
+                if video.upload_date >= playlist.download_from_date:
+                    logger.debug("Video " + str(video.video_id) + " uploaded date " + str(video.upload_date) + " is newer then playlist download from date " + str(playlist.download_from_date) + ". Setting download required for video to 1")
+                    video.download_required = 1
+                else:
+                    logger.debug("Video " + str(video.video_id) + " uploaded date " + str(video.upload_date) + " is older then playlist download from date " + str(playlist.download_from_date) + ". Setting download required for video to 0")
+                    video.download_required = 0
+                session.add(video)
+                session.commit()
+        logger.debug("Found " + str(len(videos_without_upload_date)) + " videos without upload date.")
+        i = 0
+        j = 0
+        google_api_id_limit = 50
+        video_ids_to_check = ""
+        while i < len(videos_without_upload_date):
+            if j != 0:
+                video_ids_to_check = video_ids_to_check + ","
+            video_ids_to_check = str(video_ids_to_check + videos_without_upload_date[i].video_id)
+            logger.debug("Found video ID " + str(videos_without_upload_date[i].video_id) + " in videos without upload date.")
+            i += 1
+            j += 1
+            if j == google_api_id_limit or i == len(videos_without_upload_date):
+                j = 0
+                check_video_ids_for_upload_date(video_ids_to_check, playlist.download_from_date)
+                video_ids_to_check = ""
+    session.add(playlist)
+    session.commit()
+
+
+def verify_and_update_data_model():
+    current_data_model_version_stat: Statistic = session.query(Statistic).filter(Statistic.statistic_type == "data_model_version").scalar()
+    if current_data_model_version_stat is None:
+        current_data_model_version_stat = Statistic()
+        current_data_model_version = 1
+        current_data_model_version_stat.statistic_value = str(current_data_model_version)
+        current_data_model_version_stat.statistic_type = "data_model_version"
+        current_data_model_version_stat.statistic_date = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        with engine.connect() as con:
+            rs = con.execute('ALTER TABLE playlists ADD download_from_date DATETIME NULL DEFAULT NULL AFTER channel_id;')
+            rs = con.execute('ALTER TABLE videos ADD upload_date DATETIME NULL DEFAULT NULL AFTER download_required;')
+        session.add(current_data_model_version_stat)
+        session.commit()
+
+
 signal.signal(signal.SIGINT, signal_handler)
 
+verify_and_update_data_model()
 
 if mode == "add_channel":
     add_channel(channel_id)
@@ -854,3 +982,9 @@ if mode == "toggle_channel_download":
 
 if mode == "verify_offline_videos":
     verify_offline_videos()
+
+if mode == "list_playlists":
+    list_playlists()
+
+if mode == "modify_playlist":
+    modify_playlist()

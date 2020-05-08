@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from sqlalchemy import Column, String, Integer, ForeignKey
+from sqlalchemy import Column, String, Integer, ForeignKey, DateTime
 
 from base import Base
 
@@ -26,3 +26,4 @@ class Playlist(Base):
     entries = Column(Integer)
     monitored = Column(Integer, nullable=False)
     channel_id = Column(Integer, ForeignKey('channels.id'), nullable=False)
+    download_from_date = Column(DateTime)

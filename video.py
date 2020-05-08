@@ -32,3 +32,4 @@ class Video(Base):
     online = Column(Integer)
     copyright = Column(String(length=3000))
     download_required = Column(Integer)
+    upload_date = Column(DateTime)
