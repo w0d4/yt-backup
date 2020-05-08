@@ -225,6 +225,15 @@ def get_playlist_ids_from_google(local_channel_id):
     return response
 
 
+def is_headless_machine():
+    while "the answer is invalid":
+        reply = str(input("Are you working on a headless machine?" + ' (Y/N): ')).lower().strip()
+        if reply[:1] == 'y':
+            return True
+        if reply[:1] == 'n':
+            return False
+
+
 def get_google_api_credentials():
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
@@ -239,7 +248,10 @@ def get_google_api_credentials():
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(client_secrets_file, SCOPES)
-            creds = flow.run_local_server(port=0)
+            if is_headless_machine():
+                creds = flow.run_console(authorization_prompt_message='Please visit this URL to authorize this application: {url}', authorization_code_message='Enter the authorization code: ')
+            else:
+                creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
         with open('token.pickle', 'wb') as token:
             pickle.dump(creds, token)
