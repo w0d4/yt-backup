@@ -63,6 +63,7 @@ parser.add_argument("--statistics", action="store", type=str, help="Comma sepera
 parser.add_argument("--enabled", action="store_true", help="Switch to control all modes which enables or disables things. Rquired for modes: toggle_channel_download")
 parser.add_argument("--disabled", action="store_true", help="Switch to control all modes which enables or disables things. Rquired for modes: toggle_channel_download")
 parser.add_argument("--ignore_429_lock", action="store_true", help="Ignore whether an IP was 429 blocked and continue downloading with it.")
+parser.add_argument("--all_meta", action="store_true", help="When adding a channel with --channel-id, all playlists and videos will be downloaded automatically.")
 parser.add_argument("--debug", action="store_true")
 parser.add_argument("-V", action="version", version="%(prog)s 0.9.1")
 args = parser.parse_args()
@@ -97,6 +98,7 @@ enabled = args.enabled
 disabled = args.disabled
 ignore_429_lock = args.ignore_429_lock
 download_from = args.download_from
+all_meta = args.all_meta
 
 # define video status
 video_status = {"offline": 0, "online": 1, "http_403": 2, "hate_speech": 3, "unlisted": 4}
@@ -190,8 +192,8 @@ def check_429_lock():
         date_of_last_429 = datetime.strptime(str(http_429_state.statistic_date), '%Y-%m-%d %H:%M:%S')
         current_time = datetime.now()
         delta = current_time - date_of_last_429
-        logger.debug("Delta seconds since last 429: "+str(delta.total_seconds()))
-        if delta.total_seconds() < 48*60*60:
+        logger.debug("Delta seconds since last 429: " + str(delta.total_seconds()))
+        if delta.total_seconds() < 48 * 60 * 60:
             return True
 
 
@@ -245,12 +247,13 @@ def get_google_api_credentials():
 
 
 def get_channel_playlists(local_channel_id, monitored=1):
+    global playlist_id
     logger.debug("Getting playlist IDs")
     google_response = get_playlist_ids_from_google(local_channel_id)
     for playlist in google_response['items'][0]['contentDetails']['relatedPlaylists']:
         if playlist not in ["watchHistory", "watchLater", "favorites", "likes"]:
-            local_playlist_id = str(google_response['items'][0]['contentDetails']['relatedPlaylists'][playlist])
-            if session.query(Playlist).filter(Playlist.playlist_id == local_playlist_id).scalar() is not None:
+            playlist_id = str(google_response['items'][0]['contentDetails']['relatedPlaylists'][playlist])
+            if session.query(Playlist).filter(Playlist.playlist_id == playlist_id).scalar() is not None:
                 logger.debug("Playlist is already in database")
                 continue
             logger.debug(str("Found playlist " + playlist + " " + google_response['items'][0]['contentDetails']['relatedPlaylists'][playlist]))
@@ -260,7 +263,9 @@ def get_channel_playlists(local_channel_id, monitored=1):
             playlist_obj.channel_id = session.query(Channel).filter(Channel.channel_id == local_channel_id).scalar().id
             playlist_obj.monitored = monitored
             session.add(playlist_obj)
-    session.commit()
+            session.commit()
+            if download_from is not None:
+                modify_playlist()
 
 
 def get_channel_name_from_google(local_channel_id):
@@ -274,14 +279,15 @@ def get_channel_name_from_google(local_channel_id):
 
 
 def get_channel_id_from_google(local_username):
+    global channel_id
     youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
     logger.debug("Excuting youtube API call for getting channel id by username")
     request = youtube.channels().list(part="id", forUsername=local_username)
     response = request.execute()
     logger.debug(str(response))
-    local_channel_id = str(response["items"][0]["id"])
-    logger.debug("Got channel name " + local_channel_id + " from google.")
-    return local_channel_id
+    channel_id = str(response["items"][0]["id"])
+    logger.debug("Got channel name " + channel_id + " from google.")
+    return channel_id
 
 
 def add_channel(local_channel_id):
@@ -304,6 +310,8 @@ def add_channel(local_channel_id):
         logger.info("Channel is already in database")
     end_time = get_current_timestamp()
     log_operation(end_time - start_time, "add_channel", "Added channel " + channel.channel_name)
+    if all_meta:
+        get_playlists()
 
 
 def get_video_infos_for_one_video(video_id):
@@ -361,13 +369,17 @@ def add_user(local_username):
 
 
 def get_playlists():
-    channels = session.query(Channel).all()
+    channels = session.query(Channel)
+    if channel_id is not None:
+        channels = channels.filter(Channel.channel_id == channel_id)
     for channel in channels:
         start_time = get_current_timestamp()
-        logger.debug("Getting Playlists for " + str(channel.channel_name))
+        logger.info("Getting Playlists for " + str(channel.channel_name))
         get_channel_playlists(channel.channel_id)
         end_time = get_current_timestamp()
         log_operation(end_time - start_time, "get_playlists", "Got playlists for channel " + str(channel.channel_name))
+    if all_meta:
+        get_video_infos()
 
 
 def get_videos_from_playlist_from_google(local_playlist_id, next_page_token):
@@ -384,6 +396,9 @@ def get_videos_from_playlist_from_google(local_playlist_id, next_page_token):
 
 def get_video_infos():
     playlists = session.query(Playlist)
+    if channel_id is not None:
+        internal_channel_id = session.query(Channel.id).filter(Channel.channel_id == channel_id)
+        playlists = playlists.filter(Playlist.channel_id == internal_channel_id)
     if playlist_id is not None:
         playlists = playlists.filter(Playlist.playlist_id == playlist_id)
     for playlist in playlists:
@@ -879,8 +894,8 @@ def check_video_ids_for_upload_date(video_ids_to_check, download_date_limit=None
     session.commit()
 
 
-
 def modify_playlist():
+    global download_from
     if playlist_id is None:
         logger.error("--playlist-id is needed. If you don't know your playlist ID, try the \"python3 yt-backup.py list_playlists\" command.")
         return None
@@ -888,6 +903,8 @@ def modify_playlist():
     if playlist is None:
         logger.error("Given playlist-id is not in database. Please find correct one with \"python3 yt-backup.py list_playlists\" command or add channel with playlist first.")
         return None
+    if download_from == "now":
+        download_from = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     if download_from == "all":
         playlist.download_from_date = None
         videos = session.query(Video).filter(Video.playlist == playlist.id)
