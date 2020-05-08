@@ -734,8 +734,22 @@ def download_video(video_id, channel_name):
             return downloaded_video_file
         if "WARNING: video doesn't have subtitles" in str(output.stderr):
             logger.error("Could not download subtitles for this video. Continue anyway.")
-            downloaded_video_file = glob.glob(config["base"]["download_dir"] + "/" + channel_name + "/*.mkv")[0]
-            logger.debug("Video name is " + downloaded_video_file)
+            try:
+                logger.debug("Try finding the video name in download directory.")
+                downloaded_video_file = glob.glob(config["base"]["download_dir"] + "/" + channel_name + "/*.mkv")[0]
+                logger.debug("Video name is " + downloaded_video_file)
+                return downloaded_video_file
+            except:
+                # In some cases, youtube-dl will not merge to mkv, even if --merge-output-format mkv is set
+                # so we even have to check for mp4 files in case we couldn't find an mkv
+                logger.debug("Could not find mkv file. Searching for mp4 file.")
+                try:
+                    downloaded_video_file = glob.glob(config["base"]["download_dir"] + "/" + channel_name + "/*.mp4")[0]
+                except:
+                    logger.error("Cannot find any downloaded file. Please check youtube-dl output by hand...")
+                    downloaded_video_file = "not_downloaded"
+                    logger.debug("Video name is " + downloaded_video_file)
+
 
     if "has already been recorded in archive" in str(output.stdout):
         logger.info("The video is already in youtube-dl archive file. We assume video is already downloaded. If not, remove from archive file.")
