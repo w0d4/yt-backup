@@ -33,6 +33,7 @@ from time import sleep
 import googleapiclient.discovery
 import googleapiclient.errors
 import requests
+import sqlalchemy
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 from sqlalchemy import func, or_
@@ -381,7 +382,9 @@ def add_user(local_username):
 
 
 def get_playlists():
+    global playlist_id
     channels = session.query(Channel)
+    save_playlist_id = playlist_id
     if channel_id is not None:
         channels = channels.filter(Channel.channel_id == channel_id)
     for channel in channels:
@@ -390,6 +393,7 @@ def get_playlists():
         get_channel_playlists(channel.channel_id)
         end_time = get_current_timestamp()
         log_operation(end_time - start_time, "get_playlists", "Got playlists for channel " + str(channel.channel_name))
+    playlist_id = save_playlist_id
     if all_meta:
         get_video_infos()
 
@@ -542,11 +546,13 @@ def download_videos():
     video_file = None
     http_429_counter = 0
     if playlist_id is None:
+        logger.debug("Playlist ID for downloading is None. Getting all videos.")
         if retry_403:
             videos_not_downloaded = session.query(Video).filter(Video.downloaded == None).filter(or_(Video.online == video_status["online"], Video.online == video_status["hate_speech"], Video.online == video_status["http_403"])).filter(Video.download_required == 1)
         else:
             videos_not_downloaded = session.query(Video).filter(Video.downloaded == None).filter(or_(Video.online == video_status["online"], Video.online == video_status["hate_speech"])).filter(Video.download_required == 1)
     else:
+        logger.debug("Playlist ID for downloading is " + str(playlist_id))
         playlist_internal_id = session.query(Playlist.id).filter(Playlist.playlist_id == playlist_id)
         if retry_403:
             videos_not_downloaded = session.query(Video).filter(Video.downloaded == None).filter(Video.playlist == playlist_internal_id).filter(or_(Video.online == video_status["online"], Video.online == video_status["http_403"], Video.online == video_status["hate_speech"])).filter(Video.download_required == 1)
@@ -971,8 +977,11 @@ def verify_and_update_data_model():
         current_data_model_version_stat.statistic_type = "data_model_version"
         current_data_model_version_stat.statistic_date = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         with engine.connect() as con:
-            rs = con.execute('ALTER TABLE playlists ADD download_from_date DATETIME NULL DEFAULT NULL AFTER channel_id;')
-            rs = con.execute('ALTER TABLE videos ADD upload_date DATETIME NULL DEFAULT NULL AFTER download_required;')
+            try:
+                rs = con.execute('ALTER TABLE playlists ADD download_from_date DATETIME NULL DEFAULT NULL AFTER channel_id;')
+                rs = con.execute('ALTER TABLE videos ADD upload_date DATETIME NULL DEFAULT NULL AFTER download_required;')
+            except sqlalchemy.exc.OperationalError:
+                logger.info("Table columns are already existing.")
         session.add(current_data_model_version_stat)
         session.commit()
 
