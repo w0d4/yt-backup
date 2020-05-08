@@ -553,11 +553,12 @@ def download_videos():
             videos_not_downloaded = session.query(Video).filter(Video.downloaded == None).filter(or_(Video.online == video_status["online"], Video.online == video_status["hate_speech"])).filter(Video.download_required == 1)
     else:
         logger.debug("Playlist ID for downloading is " + str(playlist_id))
-        playlist_internal_id = session.query(Playlist.id).filter(Playlist.playlist_id == playlist_id)
+        playlist_internal_id = session.query(Playlist.id).filter(Playlist.playlist_id == playlist_id).scalar()
+        logger.debug("Got playlist internal ID " + str(playlist_internal_id))
         if retry_403:
-            videos_not_downloaded = session.query(Video).filter(Video.downloaded == None).filter(Video.playlist == playlist_internal_id).filter(or_(Video.online == video_status["online"], Video.online == video_status["http_403"], Video.online == video_status["hate_speech"])).filter(Video.download_required == 1)
+            videos_not_downloaded = session.query(Video).filter(Video.downloaded == None).filter(Video.playlist == str(playlist_internal_id)).filter(or_(Video.online == video_status["online"], Video.online == video_status["http_403"], Video.online == video_status["hate_speech"])).filter(Video.download_required == 1)
         else:
-            videos_not_downloaded = session.query(Video).filter(Video.downloaded == None).filter(Video.playlist == playlist_internal_id).filter(Video.online == video_status["online"], Video.online == video_status["hate_speech"]).filter(Video.download_required == 1)
+            videos_not_downloaded = session.query(Video).filter(Video.downloaded == None).filter(Video.playlist == playlist_internal_id).filter(or_(Video.online == video_status["online"], Video.online == video_status["hate_speech"])).filter(Video.download_required == 1)
     logger.info("I have " + str(len(videos_not_downloaded.all())) + " in download queue. Start downloading now.")
     for video in videos_not_downloaded:
         set_status("downloading")
