@@ -11,7 +11,7 @@ Additionally, I have added support for automatic proxy restarts, in case you get
 ## requirements
 - python3
 - python modules: sqlalchemy ConfigParser google-api-python-client google_auth_oauthlib mysql dateutil
-- Any sqlalchemy supported database
+- Any sqlalchemy supported database with utf8mb4 support
 - rclone
 - youtube-dl
 - youtube API key
@@ -20,7 +20,7 @@ Additionally, I have added support for automatic proxy restarts, in case you get
 
 ## Installation
 1. Clone this repo
-2. Create user in your DBMS with write permissions for a schema
+2. Create user in your DBMS with write permissions for a schema with utf8mb4 encoding
 3. If not available, configure a rclone remote. If remote points to cloud storage, I strongly recommend to add a crypt remote
 4. Edit config.json to match your system paths, database and rclone remote
 4.1. git commit your config.json, so it will not be overwritten by new ones in the repo every time you pull
@@ -29,7 +29,7 @@ Additionally, I have added support for automatic proxy restarts, in case you get
 
 ## config options
 ### database
-- connection_info: Connection information to your already installed database. Make shure to append ?charset=utf8 or something matching for your database engine.
+- connection_info: Connection information to your already installed database. Make shure to append ?charset=utf8mb4 or something matching for your database engine.
 
 ### base
 - download_dir: Directory where youtube-dl should put your videos before uploading it via rclone. BE CAREFUL!!! This directory will be cleaned with every new run. All data in this directory will be lost!
@@ -113,6 +113,27 @@ If a video has no upload date, it will be checked against youtube API to get dow
 If a videos upload date is newer than it's playlist download date limit, download required will be set to 1. Else it will be set to 0.
 
 
+## Problems
+### I get strange error messages during run or get_video_infos regarding encoding errors
+Make sure your database, tables and columns are created with utf8mb4 encoding support.
+Execute the following statements against your database in case you are using MariaDB/MySQL. Make sure the only output is utf8mb4
+```SQL
+SELECT default_character_set_name FROM information_schema.SCHEMATA 
+WHERE schema_name = "yt-backup";
+```
+```SQL
+SELECT CCSA.character_set_name FROM information_schema.`TABLES` T,
+       information_schema.`COLLATION_CHARACTER_SET_APPLICABILITY` CCSA
+WHERE CCSA.collation_name = T.table_collation
+  AND T.table_schema = "yt-backup"
+  AND T.table_name = "videos";
+```
+```SQL
+SELECT character_set_name FROM information_schema.`COLUMNS` 
+WHERE table_schema = "yt-backup"
+  AND table_name = "videos"
+  AND column_name = "description";
+```
 
 ## License
 Copyright (C) 2020  w0d4

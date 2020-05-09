@@ -1,6 +1,6 @@
 {
   "database": {
-    "connection_info": "mysql+mysqldb://user:password@127.0.0.1:3306/database?charset=utf8"
+    "connection_info": "mysql+mysqldb://user:password@127.0.0.1:3306/database?charset=utf8mb4"
   },
   "base": {
     "download_dir": "/tmp/youtube-dl",
