@@ -29,10 +29,10 @@ Additionally, I have added support for automatic proxy restarts, in case you get
 
 ## config options
 ### database
-- connection_info: Connection information to your already installed database
+- connection_info: Connection information to your already installed database. Make shure to append ?charset=utf8 or something matching for your database engine.
 
 ### base
-- download_dir: Directory where youtube-dl should put your videos before uploading it via rclone
+- download_dir: Directory where youtube-dl should put your videos before uploading it via rclone. BE CAREFUL!!! This directory will be cleaned with every new run. All data in this directory will be lost!
 - download_lockfile: Where to put download lockfile. This prevents, that multiple download jobs will run if script is planned via job
 - proxy_restart_command: If you have a proxy which can change it's IP adress, add it's restart command here.
 
