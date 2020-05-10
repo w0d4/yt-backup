@@ -1,3 +1,4 @@
+
 # yt-backup
 Youtube Backup made easy
 
@@ -8,26 +9,47 @@ All metadata will be stored in a database. To be flexible at this point, I have 
 Databases are fine for storing stuff and getting it again, but not for visualizing things, I have created some grafana dashboards for visualizing the stats of the tool.
 Additionally, I have added support for automatic proxy restarts, in case you get a 429 error on your current IP. This option assumes, that after each command execution, the proxy will have a new IP adress.
 
-## requirements
-- python3
-- python modules: sqlalchemy ConfigParser google-api-python-client google_auth_oauthlib mysql dateutil
+##  Dependencies
+- [Python 3.x.](http://www.python.org/)
+- Packages: sqlalchemy ConfigParser google-api-python-client google_auth_oauthlib mysql dateutil
+
+Install them with `pip`:
+```
+$ pip install -r requirements.txt
+```
 - Any sqlalchemy supported database with utf8mb4 support
-- rclone
-- youtube-dl
-- youtube API key
+- [rclone](https://rclone.org/)
+- [youtube-dl](http://ytdl-org.github.io/youtube-dl/)
+- YouTube API key
 - credentials.json file for your API key
 - working grafana installation
 
 ## Installation
 1. Clone this repo
 2. Create user in your DBMS with write permissions for a schema with utf8mb4 encoding
-3. If not available, configure a rclone remote. If remote points to cloud storage, I strongly recommend to add a crypt remote
-4. Edit config.json to match your system paths, database and rclone remote
-4.1. git commit your config.json, so it will not be overwritten by new ones in the repo every time you pull
-5. Put your client secret json from google into project directory and name it "client_secret.json"
-6. Add your database as datasource in grafana. Best name it yt-backup.
+```sql
+CREATE DATABASE mydatabase CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+GRANT ALL ON mydatabase.* TO 'user' IDENTIFIED BY 'password';
+```
+3. Configure a rclone remote. If remote points to cloud storage, I strongly recommend to add a crypt remote
+4. Modify `config.json` to match your system paths, database and rclone remote
 
-## config options
+   ***Note:*** `git commit` your config.json, so it will not be overwritten by new ones in the repo every time you pull   
+
+5. Put your client secret json from Google into project directory and name it `client_secret.json`
+6. Add your database as datasource in Grafana. Best name it yt-backup.
+
+### Creating client_secrets file
+- Go to the Google [console](https://console.developers.google.com/).
+- *Create project*.
+- Side menu: *APIs & auth -> APIs*.
+- Top menu: *Enabled API(s)*: Enable all YouTube APIs.
+- Side menu: *APIs & auth -> Credentials*.
+- *Create a Client ID*: Add credentials -> OAuth 2.0 Client ID -> Other -> Name: youtube-download -> Create -> OK
+- *Download JSON*: Under the section "OAuth 2.0 client IDs". Save the file to your local system.
+- Copy this JSON to `client_secret.json` in the project directory.
+
+## Config options
 ### database
 - connection_info: Connection information to your already installed database. Make shure to append ?charset=utf8mb4 or something matching for your database engine.
 
@@ -53,69 +75,72 @@ Additionally, I have added support for automatic proxy restarts, in case you get
 
 ## Usage
 ### Get help output
-- python3 yt-backup.py --help
+- `python3 yt-backup.py --help`
 
 ### Add a channel
 #### By channel ID (better option)
-- python3 yt-backup.py add_channel --channel_id <youtube-channel-id>
+- `python3 yt-backup.py add_channel --channel_id <youtube-channel-id>`
 #### By username
-- python3 yt-backup.py add_channel --username <youtube-user-id>
+- `python3 yt-backup.py add_channel --username <youtube-user-id>`
 #### By channel id with downloading all playlists and video infos and limit video download to videos starting from now
-python3 yt-backup.py add_channel --channel_id <youtube-channel-id> --all_meta --download_from now
+- `python3 yt-backup.py add_channel --channel_id <youtube-channel-id> --all_meta --download_from now`
 
 ### Get all playlists for channels
 #### For all channels
-- python3 yt-backup.py get_playlists
+- `python3 yt-backup.py get_playlists`
 #### For only one channel
-- python3 yt-backup.py get_playlists --channel_id <youtube channel_id>
+- `python3 yt-backup.py get_playlists --channel_id <youtube channel_id>`
 
 ### Get all videos from all playlists
-- python3 yt-backup.py get_video_infos
+- `python3 yt-backup.py get_video_infos`
 
 ### Download all videos which are not downloaded currently
-- python3 yt-backup.py download_videos
+- `python3 yt-backup.py download_videos`
 
 ### Download all videos from one specific playlist ID
-- python3 yt-backup.py download_videos --playlist_id
+- `python3 yt-backup.py download_videos --playlist_id`
 
 All videos which are in database, but not in the channel's playlist anymore, will be marked as offline.
-If you want to know, if they are completly gone or just private now, you should run python3 yt-backup.py verify_offline_videos
+
+If you want to know if they are completely gone or just private, you should run `python3 yt-backup.py verify_offline_videos`
 
 ### Generate Statistics
-- python3 yt-backup.py generate_statistics --statistics <archive_size,videos_monitored,videos_downloaded>
+- `python3 yt-backup.py generate_statistics --statistics <archive_size,videos_monitored,videos_downloaded>`
 
 ### Get playlists, get video infos, download new videos, check all offline videos against youtube API and generate statistics in one command
-- python3 yt-backup.py run
+- `python3 yt-backup.py run`
 
 ### Enable or disable the download for videos of a channel
-- python3 yt-backup.py toggle_channel_download --username <channel_name> --disable
-- python3 yt-backup.py toggle_channel_download --username <channel_name> --enable
+- `python3 yt-backup.py toggle_channel_download --username <channel_name> --disable`
+- `python3 yt-backup.py toggle_channel_download --username <channel_name> --enable`
 
-### Verifiy all marked offline videos if they are really offline or only private
-- python3 yt-backup.py verify_offline_videos
-All videos which are marked as offline in database will be checked in packages of 50 videos against the youtube API. Each video which is not returned in answer, will be marked as offline. If a video is part of the answer, it will be marked as online again or as unlisted if the API reports this.
+### Verify all marked offline videos if they are really offline or only private
+- `python3 yt-backup.py verify_offline_videos`
+All videos which are marked as offline in database will be checked in packages of 50 videos against the YouTube API. Each video which is not returned in answer, will be marked as offline. If a video is part of the answer, it will be marked as online again or as unlisted if the API reports this.
 
 ### List channels with playlists
 #### For all channels
-- python3 yt-backup.py list_playlists
+- `python3 yt-backup.py list_playlists`
 #### For only one channel by username
-- python3 yt-backup.py list_playlists --username <channel name from DB>
+- `python3 yt-backup.py list_playlists --username <channel name from DB>`
 #### For only one channel by channel ID
-- python3 yt-backup.py list_playlists --channel_id <channel_id>
+- `python3 yt-backup.py list_playlists --channel_id <channel_id>`
 
 ### Set a download limit date for a playlist
 #### Set a specific date and time for download date limit
-python3 yt-backup.py modify_playlist --playlist_id <playlist_id> --download_from "2019-06-01 00:00:00"
+- `python3 yt-backup.py modify_playlist --playlist_id <playlist_id> --download_from "2019-06-01 00:00:00"`
 #### Remove download date limit from playlist
-python3 yt-backup.py modify_playlist --playlist_id <playlist_id> --download_from all
+- `python3 yt-backup.py modify_playlist --playlist_id <playlist_id> --download_from all`
 #### What will happen?
-If a video has no upload date, it will be checked against youtube API to get download date.
+If a video has no upload date, it will be checked against YouTube API to get download date.
+
 If a videos upload date is newer than it's playlist download date limit, download required will be set to 1. Else it will be set to 0.
 
 
 ## Problems
 ### I get strange error messages during run or get_video_infos regarding encoding errors
 Make sure your database, tables and columns are created with utf8mb4 encoding support.
+
 Execute the following statements against your database in case you are using MariaDB/MySQL. Make sure the only output is utf8mb4
 ```SQL
 SELECT default_character_set_name FROM information_schema.SCHEMATA 
