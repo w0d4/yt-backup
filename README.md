@@ -80,6 +80,8 @@ GRANT ALL ON mydatabase.* TO 'user' IDENTIFIED BY 'password';
 ### Add a channel
 #### By channel ID (better option)
 - `python3 yt-backup.py add_channel --channel_id <youtube-channel-id>`
+#### By channel ID with custom channel name
+- `python3 yt-backup.py add_channel --channel_id <youtube-channel-id> --username <custom name>`
 #### By username
 - `python3 yt-backup.py add_channel --username <youtube-user-id>`
 #### By channel id with downloading all playlists and video infos and limit video download to videos starting from now
@@ -135,6 +137,11 @@ All videos which are marked as offline in database will be checked in packages o
 If a video has no upload date, it will be checked against YouTube API to get download date.
 
 If a videos upload date is newer than it's playlist download date limit, download required will be set to 1. Else it will be set to 0.
+
+### Rename a channel
+- `python3 yt-backup.py modify_channel --channel_id <channel_id> --username <new channel name>`
+The channel will be renamed in database to something new. Spaces will be replaced by _.
+No files will be moved. You have to do this by hand.
 
 
 ## Problems

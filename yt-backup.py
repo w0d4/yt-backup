@@ -54,7 +54,7 @@ Base.metadata.create_all(engine)
 session = Session()
 
 parser = argparse.ArgumentParser(description='yt-backup')
-parser.add_argument("mode", action="store", type=str, help="Valid options: add_channel, get_playlists, get_video_infos, download_videos, run, toggle_channel_download, generate_statistics, verify_offline_videos, list_playlists, modify_playlist")
+parser.add_argument("mode", action="store", type=str, help="Valid options: add_channel, get_playlists, get_video_infos, download_videos, run, toggle_channel_download, generate_statistics, verify_offline_videos, list_playlists, modify_playlist, modify_channel")
 parser.add_argument("--channel_id", action="store", type=str, help="Defines a channel ID to work on. Required for modes: add_channel")
 parser.add_argument("--username", action="store", type=str, help="Defines a channel name to work on. Required for modes: add_channel")
 parser.add_argument("--playlist_id", action="store", type=str, help="Defines a playlist ID to work on. Optional for modes: get_video_infos, download_videos")
@@ -310,9 +310,13 @@ def add_channel(local_channel_id):
     # create channel object
     channel = Channel()
 
-    # get Channel details
+    # get Channel details from youtube, in case no user defined name was detected
     channel.channel_id = local_channel_id
-    channel.channel_name = get_channel_name_from_google(local_channel_id)
+    if username is not None:
+        logger.info("Found custom channel name " + str(username).replace(" ", "_") + ". Will not request official channel name from youtube API")
+        channel.channel_name = str(username).replace(" ", "_")
+    else:
+        channel.channel_name = get_channel_name_from_google(local_channel_id)
 
     # add channel to channel table
     if session.query(Channel).filter(Channel.channel_id == local_channel_id).scalar() is None:
@@ -1001,6 +1005,25 @@ def verify_and_update_data_model():
         session.commit()
 
 
+def modify_channel():
+    if username == None:
+        logger.error("You need a new username to set for the channel with --username.")
+        return None
+    if channel_id == None:
+        logger.error("You need to specify a valid channel ID to rename with --channel_id.")
+        return None
+    channel = session.query(Channel).filter(Channel.channel_id == channel_id).scalar()
+    if channel is None:
+        logger.error("Could not get any channel with channel_id " + str(channel_id) + " from database. Please verify if channel_id is a valid channel_id with \"python3 yt-backup list_playlists\"")
+        return None
+    logger.debug("Found channel with current name " + str(channel.channel_name) + " in database.")
+    logger.info("Will rename channel " + str(channel.channel_name) + " to " + str(username).replace(" ", "_"))
+    logger.warning("This action will not move any files. Please rename channel directories by hand.")
+    channel.channel_name = str(username).replace(" ", "_")
+    session.add(channel)
+    session.commit()
+
+
 signal.signal(signal.SIGINT, signal_handler)
 
 verify_and_update_data_model()
@@ -1041,3 +1064,6 @@ if mode == "list_playlists":
 
 if mode == "modify_playlist":
     modify_playlist()
+
+if mode == "modify_channel":
+    modify_channel()
