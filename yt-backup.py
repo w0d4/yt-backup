@@ -58,6 +58,7 @@ parser.add_argument("mode", action="store", type=str, help="Valid options: add_c
 parser.add_argument("--channel_id", action="store", type=str, help="Defines a channel ID to work on. Required for modes: add_channel")
 parser.add_argument("--username", action="store", type=str, help="Defines a channel name to work on. Required for modes: add_channel")
 parser.add_argument("--playlist_id", action="store", type=str, help="Defines a playlist ID to work on. Optional for modes: get_video_infos, download_videos")
+parser.add_argument("--playlist_name", action="store", type=str, help="Defines a playlist name. Optional for modes: add_playlist, modify_playlist")
 parser.add_argument("--download_from", action="store", type=str, help="Defines a date from which videos should be downloaded for a playlist. Format: yyyy-mm-dd hh:mm:ss or all")
 parser.add_argument("--retry-403", action="store_true", help="If this flag ist set, yt-backup will retry to download videos which were marked with 403 error during initial download.")
 parser.add_argument("--statistics", action="store", type=str, help="Comma seperated list which statistics should be collected during statistics run. Supported types: archive_size,videos_monitored,videos_downloaded")
@@ -114,6 +115,7 @@ size = args.size
 duration = args.duration
 param_video_status = args.video_status
 monitored = args.monitored
+playlist_name = args.playlist_name
 
 # define video status
 video_status = {"offline": 0, "online": 1, "http_403": 2, "hate_speech": 3, "unlisted": 4}
@@ -236,6 +238,14 @@ def get_playlist_ids_from_google(local_channel_id):
     youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
     logger.debug("Excuting youtube API call for getting playlists")
     request = youtube.channels().list(part="contentDetails", id=local_channel_id)
+    response = request.execute()
+    return response
+
+
+def get_playlist_name_from_google(local_playlist_id):
+    youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
+    logger.debug("Excuting youtube API call for getting playlists")
+    request = youtube.playlists().list(part="snippet", id=local_playlist_id)
     response = request.execute()
     return response
 
@@ -1058,6 +1068,41 @@ def modify_channel():
     session.commit()
 
 
+def add_playlist():
+    global playlist_name
+    if playlist_id is None:
+        logger.error("You must define the playlist_id to add with --playlist_id")
+        return None
+    if channel_id is None:
+        logger.error("You must define the channel_id to which the playlist belongs with --channel_id")
+        return None
+    channel = session.query(Channel).filter(Channel.channel_id == channel_id).scalar()
+    if channel is None:
+        logger.error("The defined channel with channel ID " + channel_id + " could not be found in database. Please add it first.")
+        return None
+    playlist = session.query(Playlist).filter(Playlist.playlist_id == playlist_id).scalar()
+    if playlist is not None:
+        logger.error("This playlist is already in database. Cannot add it a second time.")
+        return None
+    playlist = Playlist()
+    if playlist_name is None:
+        response = get_playlist_name_from_google(playlist_id)
+        try:
+            playlist_name = str(response["items"][0]["snippet"]["title"]).replace(" ", "_")
+        except:
+            logger.error("Cannot find this playlist id on youtube. Please verify the playlist ID")
+            return None
+    playlist.playlist_id = playlist_id
+    playlist.channel_id = channel.id
+    playlist.playlist_name = playlist_name
+    playlist.monitored = 1
+    if monitored:
+        playlist.monitored = monitored
+    session.add(playlist)
+    session.commit()
+    logger.info(f'Added playlist {playlist.playlist_id} with name {playlist.playlist_name} to the database.')
+
+
 signal.signal(signal.SIGINT, signal_handler)
 
 verify_and_update_data_model()
@@ -1104,3 +1149,6 @@ if mode == "modify_channel":
 
 if mode == "add_video":
     add_video(video_id, downloaded, resolution, size, duration, param_video_status)
+
+if mode == "add_playlist":
+    add_playlist()

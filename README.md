@@ -152,6 +152,12 @@ If a videos upload date is newer than it's playlist download date limit, downloa
 The channel will be renamed in database to something new. Spaces will be replaced by _.
 No files will be moved. You have to do this by hand.
 
+### Add a playlist manually
+You can add a playlist by hand. This can be useful in case you have the playlist ID of a unlisted Playlist
+For this you need the playlist ID and the channel ID to which the playlist belongs
+Optionally you can add --playlist_name <name> and --monitored <1/0> in case you want to change the defaults
+- `python3 yt-backup.py add_playlist --playlist_id <playlist_id> --channel_id <channel_id>`
+
 ### Add a single video
 You can add a single video to the script. You must specify the video_id with --video_id
 If the video belongs to a channel which is not in database, it will be added
