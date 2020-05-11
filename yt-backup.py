@@ -61,8 +61,9 @@ parser.add_argument("--playlist_id", action="store", type=str, help="Defines a p
 parser.add_argument("--download_from", action="store", type=str, help="Defines a date from which videos should be downloaded for a playlist. Format: yyyy-mm-dd hh:mm:ss or all")
 parser.add_argument("--retry-403", action="store_true", help="If this flag ist set, yt-backup will retry to download videos which were marked with 403 error during initial download.")
 parser.add_argument("--statistics", action="store", type=str, help="Comma seperated list which statistics should be collected during statistics run. Supported types: archive_size,videos_monitored,videos_downloaded")
-parser.add_argument("--enabled", action="store_true", help="Switch to control all modes which enables or disables things. Rquired for modes: toggle_channel_download")
-parser.add_argument("--disabled", action="store_true", help="Switch to control all modes which enables or disables things. Rquired for modes: toggle_channel_download")
+parser.add_argument("--enabled", action="store_true", help="Switch to control all modes which enables or disables things. Required for modes: toggle_channel_download")
+parser.add_argument("--disabled", action="store_true", help="Switch to control all modes which enables or disables things. Required for modes: toggle_channel_download")
+parser.add_argument("--monitored", action="store", type=int, help="Can be 1 or 0. Is used in modify_playlist context.")
 parser.add_argument("--ignore_429_lock", action="store_true", help="Ignore whether an IP was 429 blocked and continue downloading with it.")
 parser.add_argument("--all_meta", action="store_true", help="When adding a channel with --channel-id, all playlists and videos will be downloaded automatically.")
 parser.add_argument("--video_id", action="store", type=str, help="When adding a video with add_video, this must be added as option")
@@ -112,6 +113,7 @@ resolution = args.resolution
 size = args.size
 duration = args.duration
 param_video_status = args.video_status
+monitored = args.monitored
 
 # define video status
 video_status = {"offline": 0, "online": 1, "http_403": 2, "hate_speech": 3, "unlisted": 4}
@@ -1006,6 +1008,9 @@ def modify_playlist():
                 j = 0
                 check_video_ids_for_upload_date(video_ids_to_check, playlist.download_from_date)
                 video_ids_to_check = ""
+    if monitored is 1 or monitored is 0:
+        playlist.monitored = monitored
+        logger.info('Set monitored flag of the playlist to ' + str(playlist.monitored))
     session.add(playlist)
     session.commit()
 

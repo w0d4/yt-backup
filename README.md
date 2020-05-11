@@ -128,15 +128,16 @@ All videos which are marked as offline in database will be checked in packages o
 #### For only one channel by channel ID
 - `python3 yt-backup.py list_playlists --channel_id <channel_id>`
 
-### Set a download limit date for a playlist
+### Modify a playlist
 #### Set a specific date and time for download date limit
 - `python3 yt-backup.py modify_playlist --playlist_id <playlist_id> --download_from "2019-06-01 00:00:00"`
 #### Remove download date limit from playlist
 - `python3 yt-backup.py modify_playlist --playlist_id <playlist_id> --download_from all`
-#### What will happen?
+##### What will happen?
 If a video has no upload date, it will be checked against YouTube API to get download date.
-
 If a videos upload date is newer than it's playlist download date limit, download required will be set to 1. Else it will be set to 0.
+#### Change a playlists monitored state
+- `python3 yt-backup.py modify_playlist --playlist_id <playlist_id> --monitored <0/1>`
 
 ### Rename a channel
 - `python3 yt-backup.py modify_channel --channel_id <channel_id> --username <new channel name>`
