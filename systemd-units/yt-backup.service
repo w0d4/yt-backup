@@ -1,0 +1,9 @@
+[Unit]
+Description=yt-backup download
+
+[Service]
+Type=oneshot
+User=<username>
+Group=<usergroup>
+WorkingDirectory=/home/<user>/yt-backup
+ExecStart=/usr/bin/python3 /home/<user>/yt-backup/yt-backup.py run

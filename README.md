@@ -49,6 +49,14 @@ GRANT ALL ON mydatabase.* TO 'user' IDENTIFIED BY 'password';
 - *Download JSON*: Under the section "OAuth 2.0 client IDs". Save the file to your local system.
 - Copy this JSON to `client_secret.json` in the project directory.
 
+
+### Automatic downloading using systemd
+- Copy yt-backup.service and yt-backup.timer from systemd-units folder to /etc/systemd/system/
+- Edit /etc/systemd/system/yt-backup.service and replace all placeholders with your system specific values
+- Edit /etc/systemd/system/yt-backup.timer and insert as many times as you want
+- As root run `systemctl daemon-reload`
+- As root run `systemctl enable --now yt-backup.timer`
+
 ## Config options
 ### database
 - connection_info: Connection information to your already installed database. Make shure to append ?charset=utf8mb4 or something matching for your database engine.

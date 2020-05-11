@@ -1,0 +1,11 @@
+[Unit]
+Description=ytdlrc timer
+
+[Timer]
+OnCalendar=03:00
+OnCalendar=15:00
+RandomizedDelaySec=3600
+Persistent=true
+
+[Install]
+WantedBy=basic.target
