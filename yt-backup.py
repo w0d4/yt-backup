@@ -749,7 +749,7 @@ def get_downloaded_video_name(youtube_dl_stdout):
         line_found = re.findall(r'\[download\] Destination:', line)
         if line_found:
             logger.debug("Found name in line: " + line)
-            downloaded_file = line.split(' ')[2]
+            downloaded_file = line.split(':')[1].strip()
             logger.debug("Parsed downloaded file " + downloaded_file + " from youtube-dl output.")
             return downloaded_file
     return "not_downloaded"
