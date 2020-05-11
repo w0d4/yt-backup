@@ -54,7 +54,7 @@ Base.metadata.create_all(engine)
 session = Session()
 
 parser = argparse.ArgumentParser(description='yt-backup')
-parser.add_argument("mode", action="store", type=str, help="Valid options: add_channel, get_playlists, get_video_infos, download_videos, run, toggle_channel_download, generate_statistics, verify_offline_videos, list_playlists, modify_playlist, modify_channel")
+parser.add_argument("mode", action="store", type=str, help="Valid options: add_channel, get_playlists, get_video_infos, download_videos, run, toggle_channel_download, generate_statistics, verify_offline_videos, list_playlists, modify_playlist, modify_channel, add_video")
 parser.add_argument("--channel_id", action="store", type=str, help="Defines a channel ID to work on. Required for modes: add_channel")
 parser.add_argument("--username", action="store", type=str, help="Defines a channel name to work on. Required for modes: add_channel")
 parser.add_argument("--playlist_id", action="store", type=str, help="Defines a playlist ID to work on. Optional for modes: get_video_infos, download_videos")
@@ -65,8 +65,14 @@ parser.add_argument("--enabled", action="store_true", help="Switch to control al
 parser.add_argument("--disabled", action="store_true", help="Switch to control all modes which enables or disables things. Rquired for modes: toggle_channel_download")
 parser.add_argument("--ignore_429_lock", action="store_true", help="Ignore whether an IP was 429 blocked and continue downloading with it.")
 parser.add_argument("--all_meta", action="store_true", help="When adding a channel with --channel-id, all playlists and videos will be downloaded automatically.")
+parser.add_argument("--video_id", action="store", type=str, help="When adding a video with add_video, this must be added as option")
+parser.add_argument("--downloaded", action="store", type=str, help="When adding a video with add_video, this can be added as option")
+parser.add_argument("--resolution", action="store", type=str, help="When adding a video with add_video, this can be added as option")
+parser.add_argument("--size", action="store", type=str, help="When adding a video with add_video, this can be added as option")
+parser.add_argument("--duration", action="store", type=str, help="When adding a video with add_video, this can be added as option")
+parser.add_argument("--video_status", action="store", type=str, help="When adding a video with add_video, this can be added as option")
 parser.add_argument("--debug", action="store_true")
-parser.add_argument("-V", action="version", version="%(prog)s 0.9.1")
+parser.add_argument("-V", action="version", version="%(prog)s 0.9.3")
 args = parser.parse_args()
 
 logger = logging.getLogger('yt-backup')
@@ -100,6 +106,12 @@ disabled = args.disabled
 ignore_429_lock = args.ignore_429_lock
 download_from = args.download_from
 all_meta = args.all_meta
+video_id = args.video_id
+downloaded = args.downloaded
+resolution = args.resolution
+size = args.size
+duration = args.duration
+param_video_status = args.video_status
 
 # define video status
 video_status = {"offline": 0, "online": 1, "http_403": 2, "hate_speech": 3, "unlisted": 4}
@@ -352,7 +364,14 @@ def get_geoblock_list_for_one_video(video_id):
     return geoblock_list
 
 
-def add_video(video_id, downloaded="", resolution="", size="", duration=""):
+def add_video(video_id, downloaded="", resolution="", size="", duration="", local_video_status="online"):
+    if video_id is None:
+        logger.error('You have to supply at least the video id with --video_id')
+        return None
+    video = session.query(Video).filter(Video.video_id == video_id).scalar()
+    if video is not None:
+        logger.error(f'Video with ID {video_id} is already in database. Cannot add it a second time.')
+        return None
     video = Video()
     video.video_id = video_id
     video_infos = get_video_infos_for_one_video(video_id)
@@ -363,6 +382,8 @@ def add_video(video_id, downloaded="", resolution="", size="", duration=""):
     local_channel_id = str(video_infos["items"][0]["snippet"]["channelId"])
     title = str(video_infos["items"][0]["snippet"]["title"])
     description = str(video_infos["items"][0]["snippet"]["description"])
+    upload_date = str(video_infos["items"][0]["snippet"]["publishedAt"])
+    upload_date = datetime.strptime(str(upload_date)[0:19], '%Y-%m-%dT%H:%M:%S')
     add_channel(local_channel_id)
     get_channel_playlists(local_channel_id, 0)
     internal_channel_id = session.query(Channel.id).filter(Channel.channel_id == local_channel_id).scalar()
@@ -374,10 +395,12 @@ def add_video(video_id, downloaded="", resolution="", size="", duration=""):
     video.resolution = resolution
     video.size = size
     video.runtime = duration
-    video.online = video_status["status"]
+    video.online = video_status[local_video_status]
     video.download_required = 1
+    video.upload_date = upload_date
     session.add(video)
     session.commit()
+    logger.info(f'Added video {video.video_id} - {video.title} to database.')
 
 
 def add_user(local_username):
@@ -905,7 +928,7 @@ def list_playlists():
                 download_from_date = "All"
             else:
                 download_from_date = str(playlist.download_from_date)
-            print(f'ID: {playlist.id} Playlist Name: {playlist.playlist_name} Youtube Playlist-ID: {playlist.playlist_id} Download From: {download_from_date}')
+            print(f'ID: {playlist.id} Playlist Name: {playlist.playlist_name} Youtube Playlist-ID: {playlist.playlist_id} Download From: {download_from_date} Monitored: {playlist.monitored}')
         print('\n')
 
 
@@ -1067,3 +1090,6 @@ if mode == "modify_playlist":
 
 if mode == "modify_channel":
     modify_channel()
+
+if mode == "add_video":
+    add_video(video_id, downloaded, resolution, size, duration, param_video_status)

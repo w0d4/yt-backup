@@ -143,6 +143,19 @@ If a videos upload date is newer than it's playlist download date limit, downloa
 The channel will be renamed in database to something new. Spaces will be replaced by _.
 No files will be moved. You have to do this by hand.
 
+### Add a single video
+You can add a single video to the script. You must specify the video_id with --video_id
+If the video belongs to a channel which is not in database, it will be added
+If the channel must be added, it's playlists will be fetched and added as not monitored, so only the added video will be in the playlist
+
+Optionally, you can add the following parameters (all values are sample values):
+- --downloaded "YYYY-MM-DD hh:mm:ss" in case you have the video already downloaded
+- --resolution 1920x1080
+- --size 12345 (size must be specified in bytes)
+- --duration 1234s (duration must be specified in seconds)
+- --video_status unlisted (default is online, if you want to add an unlisted video, use unlisted)
+- `python3 yt-backup.py add_video --video_id <video_id>`
+
 
 ## Problems
 ### I get strange error messages during run or get_video_infos regarding encoding errors
