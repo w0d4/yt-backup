@@ -789,7 +789,7 @@ def download_video(video_id, channel_name):
         if "unable to download video data: HTTP Error 403: Forbidden" in str(output.stderr):
             logger.error("This video could not be downloaded")
             return "video_forbidden"
-        if "HTTP Error 403: Forbidden" in str(output.stderr):
+        if "HTTP Error 403: Forbidden" in str(output.stderr) or "Got server HTTP error: Downloaded" in str(output.stdout):
             logger.error("Something could not be downloaded for video " + video_id)
             downloaded_video_file = "forbidden"
             return downloaded_video_file
