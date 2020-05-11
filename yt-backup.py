@@ -15,11 +15,11 @@
 
 
 import argparse
-import glob
 import json
 import logging
 import os
 import pickle
+import re
 import shutil
 import signal
 import subprocess
@@ -727,7 +727,23 @@ def generate_statistics(all_stats=False):
         log_operation(end_time - start_time, "statistics_videos_downloaded", "Getting archive size via rclone")
 
 
+def get_downloaded_video_name(youtube_dl_stdout):
+    youtube_dl_stdout = youtube_dl_stdout.decode('utf-8')
+    logger.debug("youtube-dl stdout: " + youtube_dl_stdout)
+    youtube_dl_stdout = youtube_dl_stdout.splitlines()
+    for line in youtube_dl_stdout:
+        logger.debug("Current line: " + str(line))
+        line_found = re.findall(r'Merging formats into', line)
+        if line_found:
+            logger.debug("Found name in line: " + line)
+            downloaded_file = line.split('"')[1]
+            logger.debug("Parsed downloaded file " + downloaded_file + " from youtube-dl output.")
+            return downloaded_file
+    return "not_downloaded"
+
+
 def download_video(video_id, channel_name):
+    logger.debug('Escaped Channel name is ' + str(channel_name).replace("[", "\\[").replace("]", "\\]"))
     youtube_dl_command = config["youtube-dl"]["binary_path"] + " --continue " + " -4 --download-archive " + config["youtube-dl"]["download-archive"] + " --output " + config["base"]["download_dir"] + "/\"" + channel_name + "\"/\"" + config["youtube-dl"]["naming-format"] + "\"" + " --ignore-config" + " --ignore-errors --merge-output-format mkv " + " --no-overwrites" + " --restrict-filenames --format \"" + config["youtube-dl"]["video-format"] + "\" --user-agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.122 Safari/537.36\" " + config["youtube-dl"]["additional-options"]
     if config["youtube-dl"]["proxy"] != "":
         youtube_dl_command = youtube_dl_command + " --proxy " + config["youtube-dl"]["proxy"]
@@ -763,41 +779,18 @@ def download_video(video_id, channel_name):
             downloaded_video_file = "hate_speech"
             return downloaded_video_file
         if "WARNING: video doesn't have subtitles" in str(output.stderr):
-            logger.error("Could not download subtitles for this video. Continue anyway.")
-            try:
-                logger.debug("Try finding the video name in download directory.")
-                downloaded_video_file = glob.glob(config["base"]["download_dir"] + "/" + channel_name + "/*.mkv")[0]
-                logger.debug("Video name is " + downloaded_video_file)
-                return downloaded_video_file
-            except:
-                # In some cases, youtube-dl will not merge to mkv, even if --merge-output-format mkv is set
-                # so we even have to check for mp4 files in case we couldn't find an mkv
-                logger.debug("Could not find mkv file. Searching for mp4 file.")
-                try:
-                    downloaded_video_file = glob.glob(config["base"]["download_dir"] + "/" + channel_name + "/*.mp4")[0]
-                except:
-                    logger.error("Cannot find any downloaded file. Please check youtube-dl output by hand...")
-                    downloaded_video_file = "not_downloaded"
-                    logger.debug("Video name is " + downloaded_video_file)
+            downloaded_video_file = get_downloaded_video_name(output.stdout)
+            logger.debug("Video name is " + downloaded_video_file)
+            return downloaded_video_file
 
 
     if "has already been recorded in archive" in str(output.stdout):
         logger.info("The video is already in youtube-dl archive file. We assume video is already downloaded. If not, remove from archive file.")
         downloaded_video_file = "exists_already"
     else:
-        try:
-            logger.debug("Try finding the video name in download directory.")
-            downloaded_video_file = glob.glob(config["base"]["download_dir"] + "/" + channel_name + "/*.mkv")[0]
-        except:
-            # In some cases, youtube-dl will not merge to mkv, even if --merge-output-format mkv is set
-            # so we even have to check for mp4 files in case we couldn't find an mkv
-            logger.debug("Could not find mkv file. Searching for mp4 file.")
-            try:
-                downloaded_video_file = glob.glob(config["base"]["download_dir"] + "/" + channel_name + "/*.mp4")[0]
-            except:
-                logger.error("Cannot find any downloaded file. Please check youtube-dl output by hand...")
-                downloaded_video_file = "not_downloaded"
+        downloaded_video_file = get_downloaded_video_name(output.stdout)
         logger.debug("Video name is " + downloaded_video_file)
+        return downloaded_video_file
     return downloaded_video_file
 
 
