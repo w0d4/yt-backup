@@ -397,7 +397,10 @@ def add_video(video_id, downloaded="", resolution="", size="", duration="", loca
     video.resolution = resolution
     video.size = size
     video.runtime = duration
-    video.online = video_status[local_video_status]
+    if local_video_status is None:
+        video.online = video_status["online"]
+    else:
+        video.online = video_status[local_video_status]
     video.download_required = 1
     video.upload_date = upload_date
     session.add(video)
@@ -728,6 +731,7 @@ def generate_statistics(all_stats=False):
 
 
 def get_downloaded_video_name(youtube_dl_stdout):
+    downloaded_file = None
     youtube_dl_stdout = youtube_dl_stdout.decode('utf-8')
     logger.debug("youtube-dl stdout: " + youtube_dl_stdout)
     youtube_dl_stdout = youtube_dl_stdout.splitlines()
@@ -737,6 +741,15 @@ def get_downloaded_video_name(youtube_dl_stdout):
         if line_found:
             logger.debug("Found name in line: " + line)
             downloaded_file = line.split('"')[1]
+            logger.debug("Parsed downloaded file " + downloaded_file + " from youtube-dl output.")
+            return downloaded_file
+    # If no merged video found, get the MP4 destination
+    for line in youtube_dl_stdout:
+        logger.debug("Current line: " + str(line))
+        line_found = re.findall(r'\[download\] Destination:', line)
+        if line_found:
+            logger.debug("Found name in line: " + line)
+            downloaded_file = line.split(' ')[2]
             logger.debug("Parsed downloaded file " + downloaded_file + " from youtube-dl output.")
             return downloaded_file
     return "not_downloaded"
