@@ -68,6 +68,9 @@ parser.add_argument("--monitored", action="store", type=int, help="Can be 1 or 0
 parser.add_argument("--ignore_429_lock", action="store_true", help="Ignore whether an IP was 429 blocked and continue downloading with it.")
 parser.add_argument("--all_meta", action="store_true", help="When adding a channel with --channel-id, all playlists and videos will be downloaded automatically.")
 parser.add_argument("--video_id", action="store", type=str, help="When adding a video with add_video, this must be added as option")
+parser.add_argument("--video_title", action="store", type=str, help="When adding a video with add_video, this could be added as option")
+parser.add_argument("--video_upload_date", action="store", type=str, help="When adding a video with add_video, this could be added as option")
+parser.add_argument("--video_description", action="store", type=str, help="When adding a video with add_video, this could be added as option")
 parser.add_argument("--downloaded", action="store", type=str, help="When adding a video with add_video, this can be added as option")
 parser.add_argument("--resolution", action="store", type=str, help="When adding a video with add_video, this can be added as option")
 parser.add_argument("--size", action="store", type=str, help="When adding a video with add_video, this can be added as option")
@@ -116,6 +119,9 @@ duration = args.duration
 param_video_status = args.video_status
 monitored = args.monitored
 playlist_name = args.playlist_name
+video_title = args.video_title
+video_description = args.video_description
+video_upload_date = args.video_upload_date
 
 # define video status
 video_status = {"offline": 0, "online": 1, "http_403": 2, "hate_speech": 3, "unlisted": 4}
@@ -386,20 +392,35 @@ def add_video(video_id, downloaded="", resolution="", size="", duration="", loca
         return None
     video = Video()
     video.video_id = video_id
-    video_infos = get_video_infos_for_one_video(video_id)
-    logger.debug(str(video_infos))
-    if video_infos["pageInfo"]["totalResults"] == 0:
+    if local_video_status != "offline":
+        video_infos = get_video_infos_for_one_video(video_id)
+        logger.debug(str(video_infos))
+    if local_video_status == "offline" or video_infos["pageInfo"]["totalResults"] == 0:
         logger.error("Video with ID " + video_id + " is not available on youtube anymore")
-        return ""
-    local_channel_id = str(video_infos["items"][0]["snippet"]["channelId"])
-    title = str(video_infos["items"][0]["snippet"]["title"])
-    description = str(video_infos["items"][0]["snippet"]["description"])
-    upload_date = str(video_infos["items"][0]["snippet"]["publishedAt"])
-    upload_date = datetime.strptime(str(upload_date)[0:19], '%Y-%m-%dT%H:%M:%S')
-    add_channel(local_channel_id)
-    get_channel_playlists(local_channel_id, 0)
-    internal_channel_id = session.query(Channel.id).filter(Channel.channel_id == local_channel_id).scalar()
-    video_playlist = session.query(Playlist.id).filter(Playlist.channel_id == internal_channel_id).filter(Playlist.playlist_name == "uploads")
+        local_video_status = "offline"
+        if video_title is None:
+            logger.error('When adding offline videos, a title must be specified with --video_title.')
+            return None
+        if video_description is None:
+            logger.error('When adding offline videos, a description must be specified with --video_description.')
+            return None
+        if playlist_id is None:
+            logger.error('When adding offline videos, a channel_id must be specified with --playlist_id.')
+            return None
+        title = video_title
+        description = video_description
+        upload_date = video_upload_date
+        video_playlist = session.query(Playlist.id).filter(Playlist.playlist_id == playlist_id)
+    else:
+        local_channel_id = str(video_infos["items"][0]["snippet"]["channelId"])
+        title = str(video_infos["items"][0]["snippet"]["title"])
+        description = str(video_infos["items"][0]["snippet"]["description"])
+        upload_date = str(video_infos["items"][0]["snippet"]["publishedAt"])
+        upload_date = datetime.strptime(str(upload_date)[0:19], '%Y-%m-%dT%H:%M:%S')
+        add_channel(local_channel_id)
+        get_channel_playlists(local_channel_id, 0)
+        internal_channel_id = session.query(Channel.id).filter(Channel.channel_id == local_channel_id).scalar()
+        video_playlist = session.query(Playlist.id).filter(Playlist.channel_id == internal_channel_id).filter(Playlist.playlist_name == "uploads")
     video.playlist = video_playlist
     video.title = title
     video.description = description
