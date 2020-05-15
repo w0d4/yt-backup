@@ -31,15 +31,12 @@ $ pip install -r requirements.txt
 CREATE DATABASE mydatabase CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 GRANT ALL ON mydatabase.* TO 'user' IDENTIFIED BY 'password';
 ```
-3. Configure a rclone remote. If remote points to cloud storage, I strongly recommend to add a crypt remote
-4. Modify `config.json` to match your system paths, database and rclone remote
-
-   ***Note:*** `git commit` your config.json, so it will not be overwritten by new ones in the repo every time you pull   
-
+3. Configure an rclone remote. If remote points to cloud storage, I strongly recommend to add a crypt remote
+4. Modify `config.json.example` to match your system paths, database and rclone remote. Save this as `config.json`
 5. Put your client secret json from Google into project directory and name it `client_secret.json`
-6. Add your database as datasource in Grafana. Best name it yt-backup.
+6. Add your database as datasource in Grafana. Best name it `yt-backup`.
 
-### Creating client_secrets file
+### Creating client_secret.json file
 - Go to the Google [console](https://console.developers.google.com/).
 - *Create project*.
 - Side menu: *APIs & auth -> APIs*.
