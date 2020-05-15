@@ -687,6 +687,7 @@ def download_videos():
             continue
         if video_file == "video_forbidden":
             video.online = video_status["http_403"]
+            logger.info("Setting video status to forbidden. I you want to retry the download, add --retry-403")
             session.add(video)
             session.commit()
             continue
@@ -812,7 +813,7 @@ def download_video(video_id, channel_name):
             return "video_forbidden"
         if "HTTP Error 403: Forbidden" in str(output.stderr) or "Got server HTTP error: Downloaded" in str(output.stdout):
             logger.error("Something could not be downloaded for video " + video_id)
-            downloaded_video_file = "forbidden"
+            downloaded_video_file = "video_forbidden"
             return downloaded_video_file
         if "HTTP Error 429" in str(output.stderr):
             logger.error("Got HTTP 429 error. Stopping here for today.")
