@@ -172,6 +172,46 @@ Optionally, you can add the following parameters (all values are sample values):
 - `python3 yt-backup.py add_video --video_id <video_id>`
 
 
+## Grafana Dashboards
+You need a running grafana installation for this.
+There is also an [official docker](https://grafana.com/docs/grafana/latest/installation/docker/) image in case you do not have a running grafana installation.
+
+### Create a new views in your database
+#### MySQL/MariaDB
+```SQL
+CREATE OR REPLACE
+ALGORITHM = UNDEFINED
+VIEW downloaded_and_available_videos_by_channel
+AS SELECT 
+t1.channel_name, video_count, COALESCE(downloaded_count,0) as downloaded_count
+FROM (
+	SELECT channels.channel_name AS channel_name,COUNT(*) AS video_count
+	FROM videos
+	INNER JOIN playlists ON videos.playlist=playlists.id
+	INNER JOIN channels ON playlists.channel_id=channels.id GROUP BY playlists.id ORDER BY video_count DESC) t1
+	LEFT JOIN (
+		SELECT channels.channel_name AS channel_name,COUNT(*) AS downloaded_count
+		FROM videos
+		INNER JOIN playlists ON videos.playlist=playlists.id
+		INNER JOIN channels ON playlists.channel_id=channels.id
+		WHERE videos.downloaded IS NOT NULL
+		GROUP BY playlists.id ORDER BY downloaded_count DESC) t2
+	ON t1.channel_name = t2.channel_name
+ORDER BY video_count DESC
+```
+```SQL
+CREATE OR REPLACE
+ALGORITHM=UNDEFINED 
+VIEW downloaded_and_available_videos_by_channel_with_percent AS
+select downloaded_and_available_videos_by_channel.channel_name AS channel_name,downloaded_and_available_videos_by_channel.video_count AS video_count,downloaded_and_available_videos_by_channel.downloaded_count AS downloaded_count,round(downloaded_and_available_videos_by_channel.downloaded_count * 100.0 / downloaded_and_available_videos_by_channel.video_count,1) AS Percent
+FROM downloaded_and_available_videos_by_channel
+```
+
+### Import the dashboard json files from [the grafana dashboards folder](https://github.com/w0d4/yt-backup/tree/master/grafana-dashboards) into your grafana installation
+- https://grafana.com/docs/grafana/latest/reference/export_import/#importing-a-dashboard
+- Correct all the links on the overview dashboard to match your dashboard IDs
+
+
 ## Problems
 ### I get strange error messages during run or get_video_infos regarding encoding errors
 Make sure your database, tables and columns are created with utf8mb4 encoding support.
