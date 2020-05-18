@@ -5,6 +5,7 @@
   "base": {
     "download_dir": "/tmp/youtube-dl",
     "download_lockfile": "/tmp/yt-backup-lockfiles",
+    "channel_naming": "%channel_name [%channel_id]",
     "proxy_restart_command": "docker restart proxy_container"
   },
   "rclone": {

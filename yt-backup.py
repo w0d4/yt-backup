@@ -126,7 +126,6 @@ video_upload_date = args.video_upload_date
 # define video status
 video_status = {"offline": 0, "online": 1, "http_403": 2, "hate_speech": 3, "unlisted": 4}
 
-
 def get_current_timestamp():
     ts = time.time()
     return ts
@@ -316,7 +315,7 @@ def get_channel_name_from_google(local_channel_id):
     logger.debug("Excuting youtube API call for getting channel name")
     request = youtube.channels().list(part="brandingSettings", id=local_channel_id)
     response = request.execute()
-    channel_name = str(response["items"][0]["brandingSettings"]["channel"]["title"]).replace(" ", "_")
+    channel_name = str(response["items"][0]["brandingSettings"]["channel"]["title"])
     logger.debug("Got channel name " + channel_name + " from google.")
     return channel_name
 
@@ -343,11 +342,19 @@ def add_channel(local_channel_id):
     # get Channel details from youtube, in case no user defined name was detected
     channel.channel_id = local_channel_id
     if username is not None:
-        logger.info("Found custom channel name " + str(username).replace(" ", "_") + ". Will not request official channel name from youtube API")
-        channel.channel_name = str(username).replace(" ", "_")
+        logger.info("Found custom channel name " + str(username) + ". Will not request official channel name from youtube API")
+        channel.channel_name = str(username)
     else:
-        channel.channel_name = get_channel_name_from_google(local_channel_id)
-
+        channel_name = get_channel_name_from_google(local_channel_id)
+        if "channel_naming" in config["base"] and config["base"]["channel_naming"] is not "":
+            logger.debug("Found channel name template in config")
+            channel.channel_name = str(config["base"]["channel_naming"]).replace("%channel_name", channel_name).replace(("%channel_id"), local_channel_id)
+        else:
+            channel.channel_name = channel_name
+    # secure channel name
+    if "/" in channel.channel_name:
+        channel.channel_name = channel.channel_name.replace("/", "_")
+        logger.info("Replaced all / characters in channel name with _, since / is not a valid character in file and folder names.")
     # add channel to channel table
     if session.query(Channel).filter(Channel.channel_id == local_channel_id).scalar() is None:
         logger.info("Added Channel " + channel.channel_name + " to database.")
@@ -789,7 +796,7 @@ def get_downloaded_video_name(youtube_dl_stdout):
 
 def download_video(video_id, channel_name):
     logger.debug('Escaped Channel name is ' + str(channel_name).replace("[", "\\[").replace("]", "\\]"))
-    youtube_dl_command = config["youtube-dl"]["binary_path"] + " --continue " + " -4 --download-archive " + config["youtube-dl"]["download-archive"] + " --output " + config["base"]["download_dir"] + "/\"" + channel_name + "\"/\"" + config["youtube-dl"]["naming-format"] + "\"" + " --ignore-config" + " --ignore-errors --merge-output-format mkv " + " --no-overwrites" + " --restrict-filenames --format \"" + config["youtube-dl"]["video-format"] + "\" --user-agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.122 Safari/537.36\" " + config["youtube-dl"]["additional-options"]
+    youtube_dl_command = config["youtube-dl"]["binary_path"] + " --continue " + " -4 --download-archive " + config["youtube-dl"]["download-archive"] + " --output " + config["base"]["download_dir"] + "/\"" + channel_name + "\"/\"" + config["youtube-dl"]["naming-format"] + "\"" + " --ignore-config" + " --ignore-errors --merge-output-format mkv " + " --no-overwrites" + " --format \"" + config["youtube-dl"]["video-format"] + "\" --user-agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.122 Safari/537.36\" " + config["youtube-dl"]["additional-options"]
     if config["youtube-dl"]["proxy"] != "":
         youtube_dl_command = youtube_dl_command + " --proxy " + config["youtube-dl"]["proxy"]
     youtube_dl_command = youtube_dl_command + " https://youtu.be/" + video_id
@@ -1083,9 +1090,11 @@ def modify_channel():
         logger.error("Could not get any channel with channel_id " + str(channel_id) + " from database. Please verify if channel_id is a valid channel_id with \"python3 yt-backup list_playlists\"")
         return None
     logger.debug("Found channel with current name " + str(channel.channel_name) + " in database.")
-    logger.info("Will rename channel " + str(channel.channel_name) + " to " + str(username).replace(" ", "_"))
+    logger.info("Will rename channel " + str(channel.channel_name) + " to " + str(username).replace("/", "_"))
     logger.warning("This action will not move any files. Please rename channel directories by hand.")
-    channel.channel_name = str(username).replace(" ", "_")
+    if "/" in str(username):
+        channel.channel_name = str(username).replace("/", "_")
+        logger.info("Replaced all / characters in channel name with _, since / is not a valid character in file and folder names.")
     session.add(channel)
     session.commit()
 
