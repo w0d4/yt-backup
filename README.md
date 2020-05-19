@@ -174,7 +174,7 @@ Optionally, you can add the following parameters (all values are sample values):
 You need a running grafana installation for this.
 There is also an [official docker](https://grafana.com/docs/grafana/latest/installation/docker/) image in case you do not have a running grafana installation.
 
-### Create a new views in your database
+### Create new views in your database
 #### MySQL/MariaDB
 ```SQL
 CREATE OR REPLACE
@@ -203,6 +203,14 @@ ALGORITHM=UNDEFINED
 VIEW downloaded_and_available_videos_by_channel_with_percent AS
 select downloaded_and_available_videos_by_channel.channel_name AS channel_name,downloaded_and_available_videos_by_channel.video_count AS video_count,downloaded_and_available_videos_by_channel.downloaded_count AS downloaded_count,round(downloaded_and_available_videos_by_channel.downloaded_count * 100.0 / downloaded_and_available_videos_by_channel.video_count,1) AS Percent
 FROM downloaded_and_available_videos_by_channel
+```
+```SQL
+CREATE OR REPLACE
+ALGORITHM=UNDEFINED
+VIEW `videos_downloaded_at_date` AS
+SELECT count(0) AS `number`,cast(`videos`.`downloaded` as date) AS `download_date`
+FROM `videos` where `videos`.`downloaded` IS NOT NULL
+GROUP BY cast(`videos`.`downloaded` as date)
 ```
 
 ### Import the dashboard json files from [the grafana dashboards folder](https://github.com/w0d4/yt-backup/tree/master/grafana-dashboards) into your grafana installation
