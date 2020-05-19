@@ -140,6 +140,18 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 
+def sanititze_string(name: str):
+    if "/" in name:
+        name = name.replace('/', '_')
+    if "\"" in name:
+        name = name.replace('"', '\\"')
+    if "[" in name:
+        name = name.replace("[", "\\[")
+    if "]" in name:
+        name = name.replace("]", "\\]")
+    return name
+
+
 def log_operation(duration, operation_type, operation_description):
     operation = Operation()
     operation.duration = duration
@@ -595,6 +607,19 @@ def check_videos_online_state(videos_to_check_against, local_playlist_id):
     session.commit()
 
 
+def remove_youtube_video_from_archive_file(local_video_id: str):
+    logger.debug("Trying to remove " + local_video_id + " from " + str(config["youtube-dl"]["download-archive"]))
+    with open(config["youtube-dl"]["download-archive"], "r") as f:
+        lines = f.readlines()
+        logger.debug("Read the file " + str(config["youtube-dl"]["download-archive"]))
+    with open(config["youtube-dl"]["download-archive"], "w") as f:
+        for line in lines:
+            if line.strip("\n") != "youtube " + str(local_video_id):
+                f.write(line)
+            else:
+                logger.info("Removed video id " + local_video_id + " from " + str(config["youtube-dl"]["download-archive"]))
+
+
 def download_videos():
     # Online States: 1 = online, 2 = 403 error, 3 = blocked in countries because hate speech
     if os.path.exists(config["base"]["download_lockfile"]):
@@ -678,6 +703,10 @@ def download_videos():
             sleep(60)
             continue
         if video_file == "forbidden":
+            continue
+        if video_file == "503":
+            remove_youtube_video_from_archive_file(str(video.video_id))
+            sleep(60)
             continue
         if video_file == "429":
             set_status("429 paused")
@@ -795,7 +824,7 @@ def get_downloaded_video_name(youtube_dl_stdout):
 
 
 def download_video(video_id, channel_name):
-    logger.debug('Escaped Channel name is ' + str(channel_name).replace("[", "\\[").replace("]", "\\]"))
+    logger.debug('Escaped Channel name is ' + sanititze_string(channel_name))
     youtube_dl_command = config["youtube-dl"]["binary_path"] + " --continue " + " -4 --download-archive " + config["youtube-dl"]["download-archive"] + " --output " + config["base"]["download_dir"] + "/\"" + channel_name + "\"/\"" + config["youtube-dl"]["naming-format"] + "\"" + " --ignore-config" + " --ignore-errors --merge-output-format mkv " + " --no-overwrites" + " --format \"" + config["youtube-dl"]["video-format"] + "\" --user-agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.122 Safari/537.36\" " + config["youtube-dl"]["additional-options"]
     if config["youtube-dl"]["proxy"] != "":
         youtube_dl_command = youtube_dl_command + " --proxy " + config["youtube-dl"]["proxy"]
@@ -825,6 +854,10 @@ def download_video(video_id, channel_name):
         if "HTTP Error 429" in str(output.stderr):
             logger.error("Got HTTP 429 error. Stopping here for today.")
             downloaded_video_file = "429"
+            return downloaded_video_file
+        if "HTTP Error 503" in str(output.error):
+            logger.error("Got HTTP 503 error. Will sleep for a while and continue with next video. This video will be downloaded again next run.")
+            downloaded_video_file = "503"
             return downloaded_video_file
         if "This video has been removed for violating YouTube's policy on hate speech" in str(output.stderr):
             logger.error("This video is blocked in your current country. Try again from different country.")
@@ -1095,6 +1128,8 @@ def modify_channel():
     if "/" in str(username):
         channel.channel_name = str(username).replace("/", "_")
         logger.info("Replaced all / characters in channel name with _, since / is not a valid character in file and folder names.")
+    else:
+        channel.channel_name = str(username)
     session.add(channel)
     session.commit()
 
