@@ -11,6 +11,12 @@
   ],
   "__requires": [
     {
+      "type": "panel",
+      "id": "gauge",
+      "name": "Gauge",
+      "version": ""
+    },
+    {
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
@@ -1887,6 +1893,100 @@
     },
     {
       "cacheTimeout": null,
+      "datasource": "${DS_YT-BACKUP}",
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 21,
+        "y": 15
+      },
+      "id": 32,
+      "links": [],
+      "options": {
+        "fieldOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "defaults": {
+            "decimals": 0,
+            "mappings": [
+              {
+                "$$hashKey": "object:450",
+                "id": 0,
+                "op": "=",
+                "text": "0",
+                "type": 1,
+                "value": "null"
+              }
+            ],
+            "max": 10000,
+            "min": 0,
+            "nullValueMode": "connected",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "#299c46",
+                  "value": null
+                },
+                {
+                  "color": "#EAB839",
+                  "value": 7500
+                },
+                {
+                  "color": "#d44a3a",
+                  "value": 9000
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "limit": 10000,
+          "overrides": [],
+          "values": true
+        },
+        "orientation": "horizontal",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "6.7.3",
+      "targets": [
+        {
+          "format": "table",
+          "group": [],
+          "metricColumn": "none",
+          "rawQuery": true,
+          "rawSql": "SELECT SUM(statistic_value) AS used_quota_last_24h\nFROM statistics\nWHERE statistics.statistic_type = 'used_quota' AND statistics.statistic_date > DATE_SUB(NOW(), INTERVAL 1 DAY)",
+          "refId": "A",
+          "select": [
+            [
+              {
+                "params": [
+                  "id"
+                ],
+                "type": "column"
+              }
+            ]
+          ],
+          "table": "operations",
+          "timeColumn": "operation_date",
+          "timeColumnType": "timestamp",
+          "where": [
+            {
+              "name": "$__timeFilter",
+              "params": [],
+              "type": "macro"
+            }
+          ]
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Quota used in last 24h",
+      "type": "gauge"
+    },
+    {
+      "cacheTimeout": null,
       "colorBackground": false,
       "colorValue": false,
       "colors": [
@@ -2027,5 +2127,5 @@
   "variables": {
     "list": []
   },
-  "version": 59
+  "version": 60
 }
