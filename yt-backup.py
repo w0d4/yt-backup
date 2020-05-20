@@ -601,7 +601,6 @@ def add_video(video_id, downloaded="", resolution="", size="", duration="", loca
         upload_date = str(video_infos["items"][0]["snippet"]["publishedAt"])
         upload_date = datetime.strptime(str(upload_date)[0:19], '%Y-%m-%dT%H:%M:%S')
         add_channel(local_channel_id)
-        get_channel_playlists(local_channel_id, 0)
         internal_channel_id = session.query(Channel.id).filter(Channel.channel_id == local_channel_id).scalar()
         video_playlist = session.query(Playlist.id).filter(Playlist.channel_id == internal_channel_id).filter(Playlist.playlist_name == "uploads")
     video.playlist = video_playlist
