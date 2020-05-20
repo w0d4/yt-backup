@@ -126,6 +126,10 @@ If you want to know if they are completely gone or just private, you should run 
 - `python3 yt-backup.py verify_offline_videos`
 All videos which are marked as offline in database will be checked in packages of 50 videos against the YouTube API. Each video which is not returned in answer, will be marked as offline. If a video is part of the answer, it will be marked as online again or as unlisted if the API reports this.
 
+### Verify all channels online status
+- `python3 yt-backup.py verify_channels`
+This will check all channel IDs against youtube API if they are still online. If not, they will be set offline. Also all playlists and videos of the channels.
+
 ### List channels with playlists
 #### For all channels
 - `python3 yt-backup.py list_playlists`

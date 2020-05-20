@@ -54,7 +54,7 @@ Base.metadata.create_all(engine)
 session = Session()
 
 parser = argparse.ArgumentParser(description='yt-backup')
-parser.add_argument("mode", action="store", type=str, help="Valid options: add_channel, get_playlists, get_video_infos, download_videos, run, toggle_channel_download, generate_statistics, verify_offline_videos, list_playlists, modify_playlist, modify_channel, add_video")
+parser.add_argument("mode", action="store", type=str, help="Valid options: add_channel, get_playlists, get_video_infos, download_videos, run, toggle_channel_download, generate_statistics, verify_offline_videos, verify_channels, list_playlists, modify_playlist, modify_channel, add_video")
 parser.add_argument("--channel_id", action="store", type=str, help="Defines a channel ID to work on. Required for modes: add_channel")
 parser.add_argument("--username", action="store", type=str, help="Defines a channel name to work on. Required for modes: add_channel")
 parser.add_argument("--playlist_id", action="store", type=str, help="Defines a playlist ID to work on. Optional for modes: get_video_infos, download_videos")
@@ -77,7 +77,7 @@ parser.add_argument("--size", action="store", type=str, help="When adding a vide
 parser.add_argument("--duration", action="store", type=str, help="When adding a video with add_video, this can be added as option")
 parser.add_argument("--video_status", action="store", type=str, help="When adding a video with add_video, this can be added as option")
 parser.add_argument("--debug", action="store_true")
-parser.add_argument("-V", action="version", version="%(prog)s 0.9.3")
+parser.add_argument("-V", action="version", version="%(prog)s 0.9.5")
 args = parser.parse_args()
 
 logger = logging.getLogger('yt-backup')
@@ -465,7 +465,7 @@ def add_user(local_username):
 
 def get_playlists():
     global playlist_id
-    channels = session.query(Channel)
+    channels = session.query(Channel).filter(Channel.offline == None)
     save_playlist_id = playlist_id
     if channel_id is not None:
         channels = channels.filter(Channel.channel_id == channel_id)
@@ -1006,6 +1006,86 @@ def verify_offline_videos():
             video_ids_to_check = ""
 
 
+def check_channel_ids_for_offline_state(channel_ids_to_check):
+    youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
+    request = youtube.channels().list(part="status", id=channel_ids_to_check)
+    response = request.execute()
+    online_ids = []
+    # Put all channel ID's received from youtube into a list
+    for entry in response['items']:
+        online_ids.append(entry['id'])
+        logger.debug("Found channel " + str(entry['id']) + " in online video list.")
+    channel_ids_to_check_list = channel_ids_to_check.split(",")
+    logger.info("Updating online status of all channels.")
+    for local_channel_id in channel_ids_to_check_list:
+        channel = session.query(Channel).filter(Channel.channel_id == local_channel_id).scalar()
+        if channel is not None:
+            logger.debug("Updating online status of channel " + str(channel.channel_name))
+            if channel.channel_id not in online_ids and channel.offline is None:
+                logger.info("Channel " + str(channel.channel_name) + " is not online anymore. Setting status to offline.")
+                channel.offline = 1
+                session.add(channel)
+                channel_playlists = session.query(Playlist).filter(Playlist.channel_id == channel.id).all()
+                if channel_playlists is not None:
+                    logger.info("Getting all playlists for channel " + str(channel.channel_name) + " from database for setting them all unmonitored.")
+                    for playlist in channel_playlists:
+                        logger.debug("Setting playlist " + str(playlist.playlist_id) + " to unmonitored, since channel is not existing anymore.")
+                        playlist.monitored = 0
+                        session.add(playlist)
+                        playlists_videos = session.query(Video).filter(Video.playlist == playlist.id).all()
+                        if playlists_videos is not None:
+                            logger.info("Getting all videos for playlist " + str(playlist.playlist_name) + " of channel " + str(channel.channel_name) + " for setting them offline.")
+                            for video in playlists_videos:
+                                logger.debug("Setting video " + str(video.video_id) + " to state offline, since channel is not exsisting anymore.")
+                                video.online = 0
+                                session.add(video)
+
+            if channel.channel_id in online_ids and channel.offline is not None:
+                logger.info("Channel " + str(channel.channel_name) + " is online. Setting status to online.")
+                channel.offline = None
+                session.add(channel)
+                channel_playlists = session.query(Playlist).filter(Playlist.channel_id == channel.id).all()
+                if channel_playlists is not None:
+                    logger.info("Getting all playlists for channel " + str(channel.channel_name) + " from database for setting them all monitored.")
+                    for playlist in channel_playlists:
+                        logger.debug("Setting playlist " + str(playlist.playlist_id) + " to monitored, since channel is existing again.")
+                        playlist.monitored = 1
+                        session.add(playlist)
+                        playlists_videos = session.query(Video).filter(Video.playlist == playlist.id).all()
+                        if playlists_videos is not None:
+                            logger.info("Getting all videos for playlist " + str(playlist.playlist_name) + " of channel " + str(channel.channel_name) + " for setting them online again.")
+                            for video in playlists_videos:
+                                logger.debug("Setting video " + str(video.video_id) + " to state online, since channel is exsisting again.")
+                                video.online = 1
+                                session.add(video)
+        session.commit()
+
+
+def verify_channels():
+    logger.info("Verifying channel status against youtube API for all channels")
+    # Channels with without offline flag from database
+    channels_to_verify_online_status = session.query(Channel).filter(Channel.offline == None).all()
+    # if no offline videos are in database, stop here. nothing more to do.
+    if channels_to_verify_online_status is None:
+        return None
+    logger.debug("Found " + str(len(channels_to_verify_online_status)) + " channels which where online until now")
+    i = 0
+    j = 0
+    google_api_id_limit = 50
+    channel_ids_to_check = ""
+    while i < len(channels_to_verify_online_status):
+        if j != 0:
+            channel_ids_to_check = channel_ids_to_check + ","
+        channel_ids_to_check = str(channel_ids_to_check + channels_to_verify_online_status[i].channel_id)
+        logger.debug("Found channel ID " + str(channels_to_verify_online_status[i].channel_id) + " in online channels.")
+        i += 1
+        j += 1
+        if j == google_api_id_limit or i == len(channels_to_verify_online_status):
+            j = 0
+            check_channel_ids_for_offline_state(channel_ids_to_check)
+            channel_ids_to_check = ""
+
+
 def list_playlists():
     channels = session.query(Channel)
     if username is not None:
@@ -1107,7 +1187,9 @@ def modify_playlist():
 
 def verify_and_update_data_model():
     current_data_model_version_stat: Statistic = session.query(Statistic).filter(Statistic.statistic_type == "data_model_version").scalar()
+    logger.debug("Current data model: " + str(current_data_model_version_stat))
     if current_data_model_version_stat is None:
+        logger.debug("Current data model is None. Updating to v1.")
         current_data_model_version_stat = Statistic()
         current_data_model_version = 1
         current_data_model_version_stat.statistic_value = str(current_data_model_version)
@@ -1117,6 +1199,24 @@ def verify_and_update_data_model():
             try:
                 rs = con.execute('ALTER TABLE playlists ADD download_from_date DATETIME NULL DEFAULT NULL AFTER channel_id;')
                 rs = con.execute('ALTER TABLE videos ADD upload_date DATETIME NULL DEFAULT NULL AFTER download_required;')
+                logger.info("Data model has been updated to " + str(current_data_model_version))
+            except sqlalchemy.exc.OperationalError:
+                logger.info("Table columns are already existing.")
+        session.add(current_data_model_version_stat)
+        session.commit()
+
+    current_data_model_version_stat: Statistic = session.query(Statistic).filter(Statistic.statistic_type == "data_model_version").scalar()
+    logger.debug("Current data model: " + str(current_data_model_version_stat))
+    if current_data_model_version_stat.statistic_value == "1":
+        logger.debug("Current data model is None. Updating to v2.")
+        current_data_model_version = 2
+        current_data_model_version_stat.statistic_value = str(current_data_model_version)
+        current_data_model_version_stat.statistic_type = "data_model_version"
+        current_data_model_version_stat.statistic_date = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        with engine.connect() as con:
+            try:
+                rs = con.execute('ALTER TABLE channels ADD offline INT NULL AFTER channel_name;')
+                logger.info("Data model has been updated to " + str(current_data_model_version))
             except sqlalchemy.exc.OperationalError:
                 logger.info("Table columns are already existing.")
         session.add(current_data_model_version_stat)
@@ -1201,6 +1301,7 @@ if mode == "download_videos":
     download_videos()
 
 if mode == "run":
+    verify_channels()
     get_playlists()
     get_video_infos()
     download_videos()
@@ -1230,3 +1331,6 @@ if mode == "add_video":
 
 if mode == "add_playlist":
     add_playlist()
+
+if mode == "verify_channels":
+    verify_channels()
