@@ -505,8 +505,23 @@ def add_channel(local_channel_id):
         logger.info("Channel is already in database")
     end_time = get_current_timestamp()
     log_operation(end_time - start_time, "add_channel", "Added channel " + channel.channel_name)
+    add_uploads_playlist(channel)
     if all_meta:
-        get_playlists()
+        get_video_infos()
+
+
+def add_uploads_playlist(channel):
+    logger.info("Adding default playlist uploads to the channel.")
+    channels_upload_playlist_id = list(channel.channel_id)
+    channels_upload_playlist_id[1] = 'U'
+    playlist = Playlist()
+    playlist.playlist_id = "".join(channels_upload_playlist_id)
+    logger.debug('uploads playlist ID is ' + str(playlist.playlist_id))
+    playlist.channel_id = channel.id
+    playlist.playlist_name = 'uploads'
+    playlist.monitored = 1
+    session.add(playlist)
+    session.commit()
 
 
 def get_video_infos_for_one_video(video_id):
@@ -1500,7 +1515,6 @@ if mode == "download_videos":
 
 if mode == "run":
     verify_channels()
-    get_playlists()
     get_video_infos()
     download_videos()
     verify_offline_videos()
