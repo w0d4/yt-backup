@@ -27,3 +27,4 @@ class Playlist(Base):
     monitored = Column(Integer, nullable=False)
     channel_id = Column(Integer, ForeignKey('channels.id'), nullable=False)
     download_from_date = Column(DateTime)
+    etag = Column(String(255))

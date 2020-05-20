@@ -665,17 +665,58 @@ def get_videos_from_playlist_from_google(local_playlist_id, next_page_token):
     return response
 
 
+def get_changed_playlists(playlists):
+    i = 0
+    j = 0
+    google_api_id_limit = 50
+    playlist_ids_to_check = ""
+    changed_playlists = []
+    while i < len(playlists):
+        if j != 0:
+            playlist_ids_to_check = playlist_ids_to_check + ","
+        playlist_ids_to_check = str(playlist_ids_to_check + playlists[i].playlist_id)
+        logger.debug("Found playlist ID " + str(playlists[i].playlist_id) + " in playlists.")
+        i += 1
+        j += 1
+        if j == google_api_id_limit or i == len(playlists):
+            j = 0
+            youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
+            request = youtube.playlists().list(part="contentDetails", id=playlist_ids_to_check)
+            try:
+                response = request.execute()
+                add_quota(3)
+            except googleapiclient.errors.HttpError as error:
+                if "The request cannot be completed because you have exceeded your" in str(error):
+                    set_quota_exceeded_state()
+                return None
+            logger.debug("Calling youtube API for playlist etags")
+            logger.debug("Got " + str(len(response["items"])) + " entries back")
+            for entry in response["items"]:
+                plid = entry["id"]
+                etag = entry["etag"]
+                playlist = session.query(Playlist).filter(Playlist.playlist_id == plid).scalar()
+                if playlist.etag != etag:
+                    playlist.etag = etag
+                    logger.debug("Updated etag of playlist " + str(playlist.playlist_id) + " to " + str(etag))
+                    changed_playlists.append(playlist)
+                    session.add(playlist)
+                else:
+                    logger.debug("etag of playlist " + str(playlist.playlist_id) + " has not changed since last check.")
+            playlist_ids_to_check = ""
+    session.commit()
+    return changed_playlists
+
+
 def get_video_infos():
-    playlists = session.query(Playlist)
+    playlists = session.query(Playlist).filter(Playlist.monitored == 1)
     if channel_id is not None:
         internal_channel_id = session.query(Channel.id).filter(Channel.channel_id == channel_id)
         playlists = playlists.filter(Playlist.channel_id == internal_channel_id)
     if playlist_id is not None:
         playlists = playlists.filter(Playlist.playlist_id == playlist_id)
-    for playlist in playlists:
+    changed_playlists = get_changed_playlists(playlists.all())
+    for playlist in changed_playlists:
         parsed_from_api = 0
-        if playlist.monitored == 0:
-            continue
         start_time = get_current_timestamp()
         videos = []
         videos_to_check_against = []
@@ -1425,6 +1466,23 @@ def verify_and_update_data_model():
         with engine.connect() as con:
             try:
                 rs = con.execute('ALTER TABLE channels ADD offline INT NULL AFTER channel_name;')
+                logger.info("Data model has been updated to " + str(current_data_model_version))
+            except sqlalchemy.exc.OperationalError:
+                logger.info("Table columns are already existing.")
+        session.add(current_data_model_version_stat)
+        session.commit()
+
+    current_data_model_version_stat: Statistic = session.query(Statistic).filter(Statistic.statistic_type == "data_model_version").scalar()
+    logger.debug("Current data model: " + str(current_data_model_version_stat))
+    if current_data_model_version_stat.statistic_value == "2":
+        logger.debug("Current data model is None. Updating to v3.")
+        current_data_model_version = 3
+        current_data_model_version_stat.statistic_value = str(current_data_model_version)
+        current_data_model_version_stat.statistic_type = "data_model_version"
+        current_data_model_version_stat.statistic_date = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        with engine.connect() as con:
+            try:
+                rs = con.execute('ALTER TABLE playlists ADD etag VARCHAR(255) NULL AFTER download_from_date;')
                 logger.info("Data model has been updated to " + str(current_data_model_version))
             except sqlalchemy.exc.OperationalError:
                 logger.info("Table columns are already existing.")
