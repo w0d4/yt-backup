@@ -229,6 +229,50 @@ def check_429_lock():
         logger.debug("Delta seconds since last 429: " + str(delta.total_seconds()))
         if delta.total_seconds() < 48 * 60 * 60:
             return True
+        else:
+            clear_http_429_state()
+            return False
+
+
+def set_quota_exceeded_state():
+    quota_exceeded_state = session.query(Statistic).filter(Statistic.statistic_type == "quota_exceeded_state").scalar()
+    if quota_exceeded_state is None:
+        quota_exceeded_state = Statistic()
+        quota_exceeded_state.statistic_type = "quota_exceeded_state"
+    quota_exceeded_state.statistic_date = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    quota_exceeded_state.statistic_value = "Quota exceeded"
+    session.add(quota_exceeded_state)
+    session.commit()
+
+
+def clear_quota_exceeded_state():
+    quota_exceeded_state = session.query(Statistic).filter(Statistic.statistic_type == "quota_exceeded_state").scalar()
+    if quota_exceeded_state is None:
+        return None
+    session.delete(quota_exceeded_state)
+    session.commit()
+
+
+def get_quota_exceeded_state():
+    quota_exceeded_state = session.query(Statistic).filter(Statistic.statistic_type == "http_429_state").scalar()
+    return quota_exceeded_state
+
+
+def check_quota_exceeded_state():
+    quota_exceeded_state = get_quota_exceeded_state()
+    if quota_exceeded_state is None:
+        return False
+    else:
+        logger.debug("Calculate difference since last quota_exceeded error")
+        date_of_last_quota_exceeded_state = datetime.strptime(str(quota_exceeded_state.statistic_date), '%Y-%m-%d %H:%M:%S')
+        current_time = datetime.now()
+        delta = current_time - date_of_last_quota_exceeded_state
+        logger.debug("Delta seconds since last quota_exceeded_state: " + str(delta.total_seconds()))
+        if delta.total_seconds() < 48 * 60 * 60:
+            return True
+        else:
+            clear_quota_exceeded_state()
+            return False
 
 
 def get_current_ytdl_ip():
@@ -252,18 +296,36 @@ def log_statistic(statistic_type, statistic_value):
 
 
 def get_playlist_ids_from_google(local_channel_id):
+    # Check for exceeded google quota
+    if check_quota_exceeded_state():
+        logger.error("Cannot proceed with getting data from youtube API. Quota exceeded.")
+        return None
     youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
     logger.debug("Excuting youtube API call for getting playlists")
     request = youtube.channels().list(part="contentDetails", id=local_channel_id)
-    response = request.execute()
+    try:
+        response = request.execute()
+    except googleapiclient.errors.HttpError as error:
+        if "The request cannot be completed because you have exceeded your" in str(error):
+            set_quota_exceeded_state()
+        return None
     return response
 
 
 def get_playlist_name_from_google(local_playlist_id):
+    # Check for exceeded google quota
+    if check_quota_exceeded_state():
+        logger.error("Cannot proceed with getting data from youtube API. Quota exceeded.")
+        return None
     youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
     logger.debug("Excuting youtube API call for getting playlists")
     request = youtube.playlists().list(part="snippet", id=local_playlist_id)
-    response = request.execute()
+    try:
+        response = request.execute()
+    except googleapiclient.errors.HttpError as error:
+        if "The request cannot be completed because you have exceeded your" in str(error):
+            set_quota_exceeded_state()
+        return None
     return response
 
 
@@ -304,6 +366,9 @@ def get_channel_playlists(local_channel_id, monitored=1):
     global playlist_id
     logger.debug("Getting playlist IDs")
     google_response = get_playlist_ids_from_google(local_channel_id)
+    if google_response is None:
+        logger.error("Got no answer from google. I will skip this.")
+        return None
     for playlist in google_response['items'][0]['contentDetails']['relatedPlaylists']:
         if playlist not in ["watchHistory", "watchLater", "favorites", "likes"]:
             playlist_id = str(google_response['items'][0]['contentDetails']['relatedPlaylists'][playlist])
@@ -323,21 +388,39 @@ def get_channel_playlists(local_channel_id, monitored=1):
 
 
 def get_channel_name_from_google(local_channel_id):
+    # Check for exceeded google quota
+    if check_quota_exceeded_state():
+        logger.error("Cannot proceed with getting data from youtube API. Quota exceeded.")
+        return None
     youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
     logger.debug("Excuting youtube API call for getting channel name")
     request = youtube.channels().list(part="brandingSettings", id=local_channel_id)
-    response = request.execute()
+    try:
+        response = request.execute()
+    except googleapiclient.errors.HttpError as error:
+        if "The request cannot be completed because you have exceeded your" in str(error):
+            set_quota_exceeded_state()
+        return None
     channel_name = str(response["items"][0]["brandingSettings"]["channel"]["title"])
     logger.debug("Got channel name " + channel_name + " from google.")
     return channel_name
 
 
 def get_channel_id_from_google(local_username):
+    # Check for exceeded google quota
+    if check_quota_exceeded_state():
+        logger.error("Cannot proceed with getting data from youtube API. Quota exceeded.")
+        return None
     global channel_id
     youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
     logger.debug("Excuting youtube API call for getting channel id by username")
     request = youtube.channels().list(part="id", forUsername=local_username)
-    response = request.execute()
+    try:
+        response = request.execute()
+    except googleapiclient.errors.HttpError as error:
+        if "The request cannot be completed because you have exceeded your" in str(error):
+            set_quota_exceeded_state()
+        return None
     logger.debug(str(response))
     channel_id = str(response["items"][0]["id"])
     logger.debug("Got channel name " + channel_id + " from google.")
@@ -358,6 +441,9 @@ def add_channel(local_channel_id):
         channel.channel_name = str(username)
     else:
         channel_name = get_channel_name_from_google(local_channel_id)
+        if channel_name is None:
+            logger.error("Got no answer from google. I will skip this.")
+            return None
         if "channel_naming" in config["base"] and config["base"]["channel_naming"] is not "":
             logger.debug("Found channel name template in config")
             channel.channel_name = str(config["base"]["channel_naming"]).replace("%channel_name", channel_name).replace(("%channel_id"), local_channel_id)
@@ -381,18 +467,36 @@ def add_channel(local_channel_id):
 
 
 def get_video_infos_for_one_video(video_id):
+    # Check for exceeded google quota
+    if check_quota_exceeded_state():
+        logger.error("Cannot proceed with getting data from youtube API. Quota exceeded.")
+        return None
     youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
     logger.debug("Excuting youtube API call for getting channel id by video_id")
     request = youtube.videos().list(part="snippet", id=video_id)
-    response = request.execute()
+    try:
+        response = request.execute()
+    except googleapiclient.errors.HttpError as error:
+        if "The request cannot be completed because you have exceeded your" in str(error):
+            set_quota_exceeded_state()
+        return None
     return response
 
 
 def get_geoblock_list_for_one_video(video_id):
+    # Check for exceeded google quota
+    if check_quota_exceeded_state():
+        logger.error("Cannot proceed with getting data from youtube API. Quota exceeded.")
+        return None
     youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
     logger.debug("Excuting youtube API call for getting channel id by video_id")
     request = youtube.videos().list(part="contentDetails", id=video_id)
-    response = request.execute()
+    try:
+        response = request.execute()
+    except googleapiclient.errors.HttpError as error:
+        if "The request cannot be completed because you have exceeded your" in str(error):
+            set_quota_exceeded_state()
+        return None
     geoblock_list = []
     logger.debug(str(response))
     for entry in response["items"][0]["contentDetails"]["regionRestriction"]["blocked"]:
@@ -481,6 +585,10 @@ def get_playlists():
 
 
 def get_videos_from_playlist_from_google(local_playlist_id, next_page_token):
+    # Check for exceeded google quota
+    if check_quota_exceeded_state():
+        logger.error("Cannot proceed with getting data from youtube API. Quota exceeded.")
+        return None
     youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
     logger.debug("Excuting youtube API call for getting videos")
     if next_page_token is None:
@@ -488,7 +596,12 @@ def get_videos_from_playlist_from_google(local_playlist_id, next_page_token):
     else:
         request = youtube.playlistItems().list(part="snippet,contentDetails", maxResults=50, playlistId=local_playlist_id, pageToken=next_page_token)
     response = ""
-    response = request.execute()
+    try:
+        response = request.execute()
+    except googleapiclient.errors.HttpError as error:
+        if "The request cannot be completed because you have exceeded your" in str(error):
+            set_quota_exceeded_state()
+        return None
     return response
 
 
@@ -512,6 +625,9 @@ def get_video_infos():
         results = []
         try:
             result = get_videos_from_playlist_from_google(playlist.playlist_id, None)
+            if result is None:
+                logger.error("Got no answer from google. I will skip this.")
+                return None
         except googleapiclient.errors.HttpError:
             logger.error("Playlist " + playlist.playlist_name + " in Channel " + channel_name + " is not available")
             continue
@@ -529,6 +645,9 @@ def get_video_infos():
             logger.debug("Playlist " + playlist.playlist_name + " in Channel " + channel_name + " has only one page.")
         while next_page_token is not None:
             result = get_videos_from_playlist_from_google(playlist.playlist_id, next_page_token)
+            if result is None:
+                logger.error("Got no answer from google. I will skip this.")
+                return None
             results.append(result)
             try:
                 next_page_token = str(result["nextPageToken"])
@@ -962,9 +1081,18 @@ def restart_proxy():
 
 
 def check_video_ids_for_offline_state(video_ids_to_check):
+    # Check for exceeded google quota
+    if check_quota_exceeded_state():
+        logger.error("Cannot proceed with getting data from youtube API. Quota exceeded.")
+        return None
     youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
     request = youtube.videos().list(part="status", id=video_ids_to_check)
-    response = request.execute()
+    try:
+        response = request.execute()
+    except googleapiclient.errors.HttpError as error:
+        if "The request cannot be completed because you have exceeded your" in str(error):
+            set_quota_exceeded_state()
+        return None
     for entry in response['items']:
         video_id = entry['id']
         video = session.query(Video).filter(Video.video_id == video_id).scalar()
@@ -1007,9 +1135,18 @@ def verify_offline_videos():
 
 
 def check_channel_ids_for_offline_state(channel_ids_to_check):
+    # Check for exceeded google quota
+    if check_quota_exceeded_state():
+        logger.error("Cannot proceed with getting data from youtube API. Quota exceeded.")
+        return None
     youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
     request = youtube.channels().list(part="status", id=channel_ids_to_check)
-    response = request.execute()
+    try:
+        response = request.execute()
+    except googleapiclient.errors.HttpError as error:
+        if "The request cannot be completed because you have exceeded your" in str(error):
+            set_quota_exceeded_state()
+        return None
     online_ids = []
     # Put all channel ID's received from youtube into a list
     for entry in response['items']:
@@ -1105,10 +1242,19 @@ def list_playlists():
 
 
 def check_video_ids_for_upload_date(video_ids_to_check, download_date_limit=None):
+    # Check for exceeded google quota
+    if check_quota_exceeded_state():
+        logger.error("Cannot proceed with getting data from youtube API. Quota exceeded.")
+        return None
     logger.debug("Getting upload date from google for the following video ids: " + str(video_ids_to_check))
     youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
     request = youtube.videos().list(part="snippet", id=video_ids_to_check)
-    response = request.execute()
+    try:
+        response = request.execute()
+    except googleapiclient.errors.HttpError as error:
+        if "The request cannot be completed because you have exceeded your" in str(error):
+            set_quota_exceeded_state()
+        return None
     for entry in response['items']:
         video_id = entry['id']
         video = session.query(Video).filter(Video.video_id == video_id).scalar()
@@ -1265,6 +1411,9 @@ def add_playlist():
     playlist = Playlist()
     if playlist_name is None:
         response = get_playlist_name_from_google(playlist_id)
+        if response is None:
+            logger.error("Got no answer from google. I will skip this.")
+            return None
         try:
             playlist_name = str(response["items"][0]["snippet"]["title"]).replace(" ", "_")
         except:
