@@ -743,7 +743,11 @@ def download_videos():
         logger.debug("Video runtime was set to " + str(video.runtime) + " seconds")
         video.resolution = get_video_resolution(video_file)
         logger.debug("Video resolution was set to " + str(video.resolution))
-        video.size = os.path.getsize(video_file)
+        try:
+            video.size = os.path.getsize(video_file)
+        except:
+            logger.error("Could not find size for video " + str(video.video_id))
+            video.size = None
         logger.debug("Video size was set to " + str(video.size) + " bytes")
         # if it was possible to download video, we can safely assume the video is online.
         # We have to set this here, in case we successfully downloaded a video which was flagged as online=2 (HTTP 403 error on first try)
@@ -881,13 +885,21 @@ def download_video(video_id, channel_name):
 
 def get_video_duration(file):
     result = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    return float(result.stdout)
+    retval = None
+    try:
+        retval = float(result.stdout)
+    except ValueError:
+        logger.error("Could not find video size for video " + str(file))
+    return retval
 
 
 def get_video_resolution(file):
     result = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=s=x:p=0", file], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     resolution = result.stdout
     resolution = resolution.decode('utf-8')
+    if str(file) in resolution:
+        logger.error("Could not find resolution for video " + str(file))
+        return None
     return str(resolution).strip()
 
 
