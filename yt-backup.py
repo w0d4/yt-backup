@@ -76,6 +76,7 @@ parser.add_argument("--resolution", action="store", type=str, help="When adding 
 parser.add_argument("--size", action="store", type=str, help="When adding a video with add_video, this can be added as option")
 parser.add_argument("--duration", action="store", type=str, help="When adding a video with add_video, this can be added as option")
 parser.add_argument("--video_status", action="store", type=str, help="When adding a video with add_video, this can be added as option")
+parser.add_argument("--print_quota", action="store_true", help="Print used quota information during run.")
 parser.add_argument("--debug", action="store_true")
 parser.add_argument("-V", action="version", version="%(prog)s 0.9.5")
 args = parser.parse_args()
@@ -98,6 +99,9 @@ logger.addHandler(fl)
 
 with open('config.json', 'r') as f:
     config = json.load(f)
+
+# save used quota for every run
+used_quota_this_run: int = 0
 
 # Psave the parsed arguments for easier use
 mode = args.mode
@@ -122,13 +126,48 @@ playlist_name = args.playlist_name
 video_title = args.video_title
 video_description = args.video_description
 video_upload_date = args.video_upload_date
+print_quota = args.print_quota
 
 # define video status
 video_status = {"offline": 0, "online": 1, "http_403": 2, "hate_speech": 3, "unlisted": 4}
 
+
 def get_current_timestamp():
     ts = time.time()
     return ts
+
+
+def add_quota(quota_used: int):
+    global used_quota_this_run
+    used_quota_this_run = used_quota_this_run + quota_used
+    if print_quota:
+        logger.info("This API call costed " + str(quota_used) + " API quota. Totally used " + str(used_quota_this_run) + " this run.")
+
+
+def persist_quota():
+    global used_quota_this_run
+    if used_quota_this_run == 0:
+        return None
+    stat_quota = Statistic()
+    stat_quota.statistic_type = "used_quota"
+    stat_quota.statistic_date = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    stat_quota.statistic_value = str(used_quota_this_run)
+    session.add(stat_quota)
+    session.commit()
+    if print_quota:
+        logger.info("Used " + str(used_quota_this_run) + " API Quota totally this run.")
+        print_quota_last_24_hours()
+
+
+def print_quota_last_24_hours():
+    logger.debug("Will print the quota used in the last 24h if the user wants to.")
+    with engine.connect() as con:
+        try:
+            rs = con.execute("SELECT SUM(statistic_value) AS used_quota_last_24h FROM statistics WHERE statistics.statistic_type = 'used_quota' AND statistics.statistic_date > DATE_SUB(NOW(), INTERVAL 1 DAY);")
+            for row in rs:
+                logger.info("Used quota during last 24h: " + str(row[0]))
+        except:
+            logger.error("Problem during getting quota info from database.")
 
 
 def signal_handler(sig, frame):
@@ -305,6 +344,7 @@ def get_playlist_ids_from_google(local_channel_id):
     request = youtube.channels().list(part="contentDetails", id=local_channel_id)
     try:
         response = request.execute()
+        add_quota(3)
     except googleapiclient.errors.HttpError as error:
         if "The request cannot be completed because you have exceeded your" in str(error):
             set_quota_exceeded_state()
@@ -322,6 +362,7 @@ def get_playlist_name_from_google(local_playlist_id):
     request = youtube.playlists().list(part="snippet", id=local_playlist_id)
     try:
         response = request.execute()
+        add_quota(3)
     except googleapiclient.errors.HttpError as error:
         if "The request cannot be completed because you have exceeded your" in str(error):
             set_quota_exceeded_state()
@@ -397,6 +438,7 @@ def get_channel_name_from_google(local_channel_id):
     request = youtube.channels().list(part="brandingSettings", id=local_channel_id)
     try:
         response = request.execute()
+        add_quota(3)
     except googleapiclient.errors.HttpError as error:
         if "The request cannot be completed because you have exceeded your" in str(error):
             set_quota_exceeded_state()
@@ -417,6 +459,7 @@ def get_channel_id_from_google(local_username):
     request = youtube.channels().list(part="id", forUsername=local_username)
     try:
         response = request.execute()
+        add_quota(1)
     except googleapiclient.errors.HttpError as error:
         if "The request cannot be completed because you have exceeded your" in str(error):
             set_quota_exceeded_state()
@@ -476,6 +519,7 @@ def get_video_infos_for_one_video(video_id):
     request = youtube.videos().list(part="snippet", id=video_id)
     try:
         response = request.execute()
+        add_quota(3)
     except googleapiclient.errors.HttpError as error:
         if "The request cannot be completed because you have exceeded your" in str(error):
             set_quota_exceeded_state()
@@ -493,6 +537,7 @@ def get_geoblock_list_for_one_video(video_id):
     request = youtube.videos().list(part="contentDetails", id=video_id)
     try:
         response = request.execute()
+        add_quota(3)
     except googleapiclient.errors.HttpError as error:
         if "The request cannot be completed because you have exceeded your" in str(error):
             set_quota_exceeded_state()
@@ -598,6 +643,7 @@ def get_videos_from_playlist_from_google(local_playlist_id, next_page_token):
     response = ""
     try:
         response = request.execute()
+        add_quota(5)
     except googleapiclient.errors.HttpError as error:
         if "The request cannot be completed because you have exceeded your" in str(error):
             set_quota_exceeded_state()
@@ -1089,6 +1135,7 @@ def check_video_ids_for_offline_state(video_ids_to_check):
     request = youtube.videos().list(part="status", id=video_ids_to_check)
     try:
         response = request.execute()
+        add_quota(3)
     except googleapiclient.errors.HttpError as error:
         if "The request cannot be completed because you have exceeded your" in str(error):
             set_quota_exceeded_state()
@@ -1143,6 +1190,7 @@ def check_channel_ids_for_offline_state(channel_ids_to_check):
     request = youtube.channels().list(part="status", id=channel_ids_to_check)
     try:
         response = request.execute()
+        add_quota(3)
     except googleapiclient.errors.HttpError as error:
         if "The request cannot be completed because you have exceeded your" in str(error):
             set_quota_exceeded_state()
@@ -1251,6 +1299,7 @@ def check_video_ids_for_upload_date(video_ids_to_check, download_date_limit=None
     request = youtube.videos().list(part="snippet", id=video_ids_to_check)
     try:
         response = request.execute()
+        add_quota(3)
     except googleapiclient.errors.HttpError as error:
         if "The request cannot be completed because you have exceeded your" in str(error):
             set_quota_exceeded_state()
@@ -1483,3 +1532,5 @@ if mode == "add_playlist":
 
 if mode == "verify_channels":
     verify_channels()
+
+persist_quota()
