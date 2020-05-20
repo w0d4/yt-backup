@@ -855,7 +855,7 @@ def download_video(video_id, channel_name):
             logger.error("Got HTTP 429 error. Stopping here for today.")
             downloaded_video_file = "429"
             return downloaded_video_file
-        if "HTTP Error 503" in str(output.error):
+        if "HTTP Error 503" in str(output.stderr):
             logger.error("Got HTTP 503 error. Will sleep for a while and continue with next video. This video will be downloaded again next run.")
             downloaded_video_file = "503"
             return downloaded_video_file
