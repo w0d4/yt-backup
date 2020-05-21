@@ -525,7 +525,10 @@ def add_uploads_playlist(channel):
     logger.debug('uploads playlist ID is ' + str(playlist.playlist_id))
     playlist.channel_id = channel.id
     playlist.playlist_name = 'uploads'
-    playlist.monitored = 1
+    if mode == "add_video":
+        playlist.monitored = 0
+    else:
+        playlist.monitored = 1
     session.add(playlist)
     session.commit()
 
