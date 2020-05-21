@@ -25,7 +25,7 @@ with open('config.json', 'r') as f:
     config = json.load(f)
 
 #Create database engine and session
-engine = create_engine(config["database"]["connection_info"])
+engine = create_engine(config["database"]["connection_info"], pool_pre_ping=True)
 Session = sessionmaker(bind=engine)
 
 Base = declarative_base()
