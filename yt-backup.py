@@ -681,10 +681,10 @@ def get_changed_playlists(playlists):
         if j == google_api_id_limit or i == len(playlists):
             j = 0
             youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
-            request = youtube.playlists().list(part="contentDetails", id=playlist_ids_to_check)
+            request = youtube.playlists().list(part="id", id=playlist_ids_to_check)
             try:
                 response = request.execute()
-                add_quota(3)
+                add_quota(1)
             except googleapiclient.errors.HttpError as error:
                 if "The request cannot be completed because you have exceeded your" in str(error):
                     set_quota_exceeded_state()
