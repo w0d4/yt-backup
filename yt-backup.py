@@ -474,6 +474,12 @@ def add_channel(local_channel_id):
     # log start time
     start_time = get_current_timestamp()
 
+    # Check if the channel is already in database
+    channel = session.query(Channel.channel_id).filter(Channel.channel_id == local_channel_id).scalar()
+    if channel is not None:
+        logger.error("This channel is already in database.")
+        return None
+
     # create channel object
     channel = Channel()
 
