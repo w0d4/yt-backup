@@ -692,7 +692,7 @@ def get_changed_playlists(playlists):
         if j == google_api_id_limit or i == len(playlists):
             j = 0
             youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
-            request = youtube.playlists().list(part="id", id=playlist_ids_to_check)
+            request = youtube.playlists().list(part="contentDetails", id=playlist_ids_to_check)
             try:
                 response = request.execute()
                 add_quota(1)
@@ -708,8 +708,9 @@ def get_changed_playlists(playlists):
                 logger.debug("etag from google for playlist " + str(plid) + " is: " + str(etag))
 
                 playlist = session.query(Playlist).filter(Playlist.playlist_id == plid).scalar()
+                channel_name = session.query(Channel.channel_name).filter(Channel.id == playlist.channel_id).scalar()
                 if force_refresh:
-                    logger.debug("--force_refresh is set. Deleting etag on playlist item to force refresh")
+                    logger.info("--force_refresh is set. Deleting etag on playlist " + str(playlist.playlist_name) + " of channel " + str(channel_name))
                     playlist.etag = None
                 else:
                     logger.debug("etag in database for playlist " + str(plid) + " is: " + str(etag))
@@ -719,9 +720,11 @@ def get_changed_playlists(playlists):
                     changed_playlists.append(playlist)
                     session.add(playlist)
                 else:
-                    logger.debug("etag of playlist " + str(playlist.playlist_id) + " has not changed since last check.")
+                    logger.info("playlist " + str(playlist.playlist_name) + " of channel " + str(channel_name) + " has not changed since last check.")
             playlist_ids_to_check = ""
     session.commit()
+    num_changed_playlists = len(changed_playlists)
+    logger.info(f'{num_changed_playlists} playlists changed.')
     return changed_playlists
 
 
@@ -733,6 +736,7 @@ def get_video_infos():
     if playlist_id is not None:
         playlists = playlists.filter(Playlist.playlist_id == playlist_id)
     changed_playlists = get_changed_playlists(playlists.all())
+
     for playlist in changed_playlists:
         parsed_from_api = 0
         start_time = get_current_timestamp()
@@ -1354,7 +1358,8 @@ def list_playlists():
                 download_from_date = "All"
             else:
                 download_from_date = str(playlist.download_from_date)
-            print(f'ID: {playlist.id} Playlist Name: {playlist.playlist_name} Youtube Playlist-ID: {playlist.playlist_id} Download From: {download_from_date} Monitored: {playlist.monitored}')
+            video_count = len(session.query(Video.id).filter(Video.playlist == playlist.id).all())
+            print(f'ID: {playlist.id} Playlist Name: {playlist.playlist_name} Youtube Playlist-ID: {playlist.playlist_id} Download From: {download_from_date} Monitored: {playlist.monitored} etag: {playlist.etag} Videos: {video_count}')
         print('\n')
 
 
