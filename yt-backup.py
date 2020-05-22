@@ -77,6 +77,7 @@ parser.add_argument("--size", action="store", type=str, help="When adding a vide
 parser.add_argument("--duration", action="store", type=str, help="When adding a video with add_video, this can be added as option")
 parser.add_argument("--video_status", action="store", type=str, help="When adding a video with add_video, this can be added as option")
 parser.add_argument("--print_quota", action="store_true", help="Print used quota information during run.")
+parser.add_argument("--force_refresh", action="store_true", help="Forces the update of video data of playlists.")
 parser.add_argument("--debug", action="store_true")
 parser.add_argument("-V", action="version", version="%(prog)s 0.9.5")
 args = parser.parse_args()
@@ -127,6 +128,7 @@ video_title = args.video_title
 video_description = args.video_description
 video_upload_date = args.video_upload_date
 print_quota = args.print_quota
+force_refresh = args.force_refresh
 
 # define video status
 video_status = {"offline": 0, "online": 1, "http_403": 2, "hate_speech": 3, "unlisted": 4}
@@ -703,7 +705,14 @@ def get_changed_playlists(playlists):
             for entry in response["items"]:
                 plid = entry["id"]
                 etag = entry["etag"]
+                logger.debug("etag from google for playlist " + str(plid) + " is: " + str(etag))
+
                 playlist = session.query(Playlist).filter(Playlist.playlist_id == plid).scalar()
+                if force_refresh:
+                    logger.debug("--force_refresh is set. Deleting etag on playlist item to force refresh")
+                    playlist.etag = None
+                else:
+                    logger.debug("etag in database for playlist " + str(plid) + " is: " + str(etag))
                 if playlist.etag != etag:
                     playlist.etag = etag
                     logger.debug("Updated etag of playlist " + str(playlist.playlist_id) + " to " + str(etag))
@@ -730,7 +739,6 @@ def get_video_infos():
         videos = []
         videos_to_check_against = []
         channel_name = session.query(Channel.channel_name).filter(Channel.id == playlist.channel_id).scalar()
-        playlist_videos_in_database = len(session.query(Video.video_id).filter(Video.playlist == playlist.id).filter(Video.online == video_status["online"]).all())
         logger.info("Getting all video metadata for playlist " + playlist.playlist_name + " for channel " + str(channel_name))
         results = []
         try:
@@ -744,9 +752,6 @@ def get_video_infos():
         results.append(result)
         videos_in_playlist = result["pageInfo"]["totalResults"]
         logger.debug("Videos in Playlist: " + str(videos_in_playlist))
-        if playlist_videos_in_database == videos_in_playlist:
-            logger.info("No new videos in playlist. We have all in database.")
-            continue
         next_page_token = None
         try:
             next_page_token = str(result["nextPageToken"])
