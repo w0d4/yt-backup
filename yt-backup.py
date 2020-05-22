@@ -695,7 +695,7 @@ def get_changed_playlists(playlists):
             request = youtube.playlists().list(part="contentDetails", id=playlist_ids_to_check)
             try:
                 response = request.execute()
-                add_quota(1)
+                add_quota(3)
             except googleapiclient.errors.HttpError as error:
                 if "The request cannot be completed because you have exceeded your" in str(error):
                     set_quota_exceeded_state()
