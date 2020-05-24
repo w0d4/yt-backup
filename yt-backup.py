@@ -892,11 +892,18 @@ def download_videos():
         shutil.rmtree(config["base"]["download_dir"])
     if config["youtube-dl"]["proxy"] != "":
         proxies = {"http": config["youtube-dl"]["proxy"], "https": config["youtube-dl"]["proxy"]}
-        r = requests.get("https://ipinfo.io", proxies=proxies)
+        try:
+            r = requests.get("https://ipinfo.io", proxies=proxies)
+        except requests.exceptions.ConnectionError:
+            logger.error("Cannot get connection to ipinfo.io")
+            r = None
     else:
         r = requests.get("https://ipinfo.io")
-    answer = json.loads(str(r.text))
-    current_country = answer["country"]
+    if r is not None:
+        answer = json.loads(str(r.text))
+        current_country = answer["country"]
+    else:
+        current_country = ""
     video_file = None
     http_429_counter = 0
     if playlist_id is None:
@@ -953,13 +960,14 @@ def download_videos():
             logger.info("This video is geoblocked on current country " + current_country + ". Will get complete geoblock list.")
             video_geoblock_list = get_geoblock_list_for_one_video(video.video_id)
             geoblock_list = ""
-            for entry in video_geoblock_list:
-                geoblock_list = geoblock_list + (str(entry) + ",")
-            logger.debug("Geoblock list for video " + str(video.video_id) + " is " + str(geoblock_list))
-            video.copyright = geoblock_list
-            session.add(video)
-            commit_with_retry()
-            sleep(60)
+            if video_geoblock_list is not None:
+                for entry in video_geoblock_list:
+                    geoblock_list = geoblock_list + (str(entry) + ",")
+                logger.debug("Geoblock list for video " + str(video.video_id) + " is " + str(geoblock_list))
+                video.copyright = geoblock_list
+                session.add(video)
+                commit_with_retry()
+                sleep(60)
             continue
         if video_file == "forbidden":
             continue
