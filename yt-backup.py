@@ -458,7 +458,11 @@ def get_channel_name_from_google(local_channel_id):
         if "The request cannot be completed because you have exceeded your" in str(error):
             set_quota_exceeded_state()
         return None
-    channel_name = str(response["items"][0]["brandingSettings"]["channel"]["title"])
+    try:
+        channel_name = str(response["items"][0]["brandingSettings"]["channel"]["title"])
+    except KeyError:
+        logger.error("No channel with this id could be found on youtube.")
+        return None
     logger.debug("Got channel name " + channel_name + " from google.")
     return channel_name
 
