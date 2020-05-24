@@ -161,6 +161,19 @@ def persist_quota():
         print_quota_last_24_hours()
 
 
+def commit_with_retry():
+    try:
+        session.commit()
+    except sqlalchemy.exc.OperationalError as e:
+        if "2006" in str(e):
+            try:
+                logger.error("Connection to database got lost. Trying to reconnect...")
+                sleep(3)
+                session.commit()
+            except:
+                raise
+
+
 def print_quota_last_24_hours():
     logger.debug("Will print the quota used in the last 24h if the user wants to.")
     with engine.connect() as con:
@@ -570,10 +583,14 @@ def get_geoblock_list_for_one_video(video_id):
         return None
     geoblock_list = []
     logger.debug(str(response))
-    for entry in response["items"][0]["contentDetails"]["regionRestriction"]["blocked"]:
-        geoblock_list.append(str(entry))
-        logger.debug("Found " + str(entry) + " in geoblock list of video " + str(geoblock_list) + ".")
-    return geoblock_list
+    try:
+        for entry in response["items"][0]["contentDetails"]["regionRestriction"]["blocked"]:
+            geoblock_list.append(str(entry))
+            logger.debug("Found " + str(entry) + " in geoblock list of video " + str(geoblock_list) + ".")
+        return geoblock_list
+    except KeyError:
+        logger.error("No blocked countries were found.")
+        return None
 
 
 def add_video(video_id, downloaded="", resolution="", size="", duration="", local_video_status="online"):
@@ -908,7 +925,7 @@ def download_videos():
                     logger.debug("Video " + video.video_id + " found in youtube-dl archive file. Setting impossible download date to import to database.")
                     video.downloaded = "1972-01-01 23:23:23"
                     session.add(video)
-                    session.commit()
+                    commit_with_retry()
                     continue
         # Get the playlist object of a video. If uploaded date is older than playlist download date, skip download and set download required to 0
         playlist = session.query(Playlist).filter(Playlist.id == video.playlist).scalar()
@@ -918,7 +935,7 @@ def download_videos():
             if playlist_download_date > video_upload_date:
                 video.download_required = 0
                 session.add(video)
-                session.commit()
+                commit_with_retry()
                 continue
         logger.info("Video " + str(video.video_id) + " - " + video.title + " is not yet downloaded. Downloading now.")
         local_channel_id = session.query(Playlist.channel_id).filter(Playlist.id == video.playlist).scalar()
@@ -937,7 +954,7 @@ def download_videos():
             logger.debug("Geoblock list for video " + str(video.video_id) + " is " + str(geoblock_list))
             video.copyright = geoblock_list
             session.add(video)
-            session.commit()
+            commit_with_retry()
             sleep(60)
             continue
         if video_file == "forbidden":
@@ -963,17 +980,17 @@ def download_videos():
             video.online = video_status["http_403"]
             logger.info("Setting video status to forbidden. I you want to retry the download, add --retry-403")
             session.add(video)
-            session.commit()
+            commit_with_retry()
             continue
         if video_file == "hate_speech":
             video.online = video_status["hate_speech"]
             session.add(video)
-            session.commit()
+            commit_with_retry()
             continue
         if video_file == "not_downloaded":
             video.downloaded = None
             session.add(video)
-            session.commit()
+            commit_with_retry()
             continue
         # get all the needed video infos
         video.downloaded = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
@@ -991,7 +1008,7 @@ def download_videos():
         # We have to set this here, in case we successfully downloaded a video which was flagged as online=2 (HTTP 403 error on first try)
         video.online = video_status["online"]
         session.add(video)
-        session.commit()
+        commit_with_retry()
         http_429_counter = 0
         logger.info("Video " + str(video.video_id) + " is downloaded.")
         end_time = get_current_timestamp()
