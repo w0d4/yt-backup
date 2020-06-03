@@ -1152,6 +1152,10 @@ def download_video(video_id, channel_name):
             logger.error("This video is blocked in your current country. Try again from different country.")
             downloaded_video_file = "hate_speech"
             return downloaded_video_file
+        if "This video has been removed for violating YouTube's Community Guidelines" in str(output.stderr):
+            logger.error("This video is blocked in your current country. Try again from different country.")
+            downloaded_video_file = "hate_speech"
+            return downloaded_video_file
         if "WARNING: video doesn't have subtitles" in str(output.stderr):
             downloaded_video_file = get_downloaded_video_name(output.stdout)
             logger.debug("Video name is " + downloaded_video_file)
