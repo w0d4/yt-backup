@@ -889,7 +889,11 @@ def download_videos():
         return None
     Path(config["base"]["download_lockfile"]).touch()
     if os.path.exists(config["base"]["download_dir"]):
-        shutil.rmtree(config["base"]["download_dir"])
+        try:
+            shutil.rmtree(config["base"]["download_dir"])
+        except OSError:
+            logger.error('Could not delete download directory. Please make sure it is not in use at the moment.')
+            remove_download_lockfile()
     current_country = get_current_country()
     video_file = None
     http_429_counter = 0
@@ -1017,13 +1021,17 @@ def download_videos():
             rclone_upload()
         if len(videos_not_downloaded.all()) > 1:
             sleep(randint(int(config["youtube-dl"]["min_sleep_interval"]), int(config["youtube-dl"]["max_sleep_interval"])))
-    if os.path.exists(config["base"]["download_lockfile"]):
-        logger.debug("Removing download lockfile")
-        os.remove(config["base"]["download_lockfile"])
+    remove_download_lockfile()
     if video_file != "429":
         set_status("done")
     set_currently_downloading("Nothing")
     return http_429_counter
+
+
+def remove_download_lockfile():
+    if os.path.exists(config["base"]["download_lockfile"]):
+        logger.debug("Removing download lockfile")
+        os.remove(config["base"]["download_lockfile"])
 
 
 def get_current_country():
