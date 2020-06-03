@@ -308,7 +308,7 @@ def clear_quota_exceeded_state():
 
 
 def get_quota_exceeded_state():
-    quota_exceeded_state = session.query(Statistic).filter(Statistic.statistic_type == "http_429_state").scalar()
+    quota_exceeded_state = session.query(Statistic).filter(Statistic.statistic_type == "quota_exceeded_state").scalar()
     return quota_exceeded_state
 
 
@@ -890,20 +890,7 @@ def download_videos():
     Path(config["base"]["download_lockfile"]).touch()
     if os.path.exists(config["base"]["download_dir"]):
         shutil.rmtree(config["base"]["download_dir"])
-    if config["youtube-dl"]["proxy"] != "":
-        proxies = {"http": config["youtube-dl"]["proxy"], "https": config["youtube-dl"]["proxy"]}
-        try:
-            r = requests.get("https://ipinfo.io", proxies=proxies)
-        except requests.exceptions.ConnectionError:
-            logger.error("Cannot get connection to ipinfo.io")
-            r = None
-    else:
-        r = requests.get("https://ipinfo.io")
-    if r is not None:
-        answer = json.loads(str(r.text))
-        current_country = answer["country"]
-    else:
-        current_country = ""
+    current_country = get_current_country()
     video_file = None
     http_429_counter = 0
     if playlist_id is None:
@@ -986,7 +973,8 @@ def download_videos():
                 break
             if config["youtube-dl"]["proxy"] != "":
                 restart_proxy()
-            sleep(10)
+                sleep(10)
+                current_country = get_current_country()
             continue
         if video_file == "video_forbidden":
             video.online = video_status["http_403"]
@@ -1036,6 +1024,24 @@ def download_videos():
         set_status("done")
     set_currently_downloading("Nothing")
     return http_429_counter
+
+
+def get_current_country():
+    if config["youtube-dl"]["proxy"] != "":
+        proxies = {"http": config["youtube-dl"]["proxy"], "https": config["youtube-dl"]["proxy"]}
+        try:
+            r = requests.get("https://ipinfo.io", proxies=proxies)
+        except requests.exceptions.ConnectionError:
+            logger.error("Cannot get connection to ipinfo.io")
+            r = None
+    else:
+        r = requests.get("https://ipinfo.io")
+    if r is not None:
+        answer = json.loads(str(r.text))
+        current_country = answer["country"]
+    else:
+        current_country = ""
+    return current_country
 
 
 def generate_statistics(all_stats=False):
