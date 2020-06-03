@@ -997,6 +997,10 @@ def download_videos():
             commit_with_retry()
             continue
         # get all the needed video infos
+        # check if video is really there
+        if not os.path.isfile(video_file):
+            logger.error("Could not find the downloaded video file. Maybe there was a problem during download. Will retry in next run.")
+            continue
         video.downloaded = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         video.runtime = get_video_duration(video_file)
         logger.debug("Video runtime was set to " + str(video.runtime) + " seconds")
