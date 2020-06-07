@@ -108,6 +108,9 @@ GRANT ALL ON mydatabase.* TO 'user' IDENTIFIED BY 'password';
 ### Download all videos from one specific playlist ID
 - `python3 yt-backup.py download_videos --playlist_id`
 
+#### Force refresh playlist for new videos (or all)
+- `python3 yt-backup.py get_video_infos --playlist_id <id> --force_refresh`
+
 All videos which are in database, but not in the channel's playlist anymore, will be marked as offline.
 
 If you want to know if they are completely gone or just private, you should run `python3 yt-backup.py verify_offline_videos`
