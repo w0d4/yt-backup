@@ -216,6 +216,14 @@ SELECT count(0) AS `number`,cast(`videos`.`downloaded` as date) AS `download_dat
 FROM `videos` where `videos`.`downloaded` IS NOT NULL
 GROUP BY cast(`videos`.`downloaded` as date)
 ```
+```SQL
+CREATE OR REPLACE
+ALGORITHM=UNDEFINED
+VIEW `size_downloaded_at_date` AS
+SELECT SUM(size)/power(1024,3) AS `size`,cast(`videos`.`downloaded` as date) AS `download_date`
+FROM `videos` where `videos`.`downloaded` IS NOT NULL
+GROUP BY cast(`videos`.`downloaded` as date)
+```
 
 ### Import the dashboard json files from [the grafana dashboards folder](https://github.com/w0d4/yt-backup/tree/master/grafana-dashboards) into your grafana installation
 - https://grafana.com/docs/grafana/latest/reference/export_import/#importing-a-dashboard
