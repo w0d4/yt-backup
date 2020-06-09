@@ -98,8 +98,12 @@ fl.setFormatter(formatter)
 logger.addHandler(ch)
 logger.addHandler(fl)
 
-with open('config.json', 'r') as f:
-    config = json.load(f)
+try:
+    with open('config.json', 'r') as f:
+        config = json.load(f)
+except json.decoder.JSONDecodeError:
+    logger.error("Cannot parse the config.json file. Please double check your syntax.")
+    sys.exit(10)
 
 # save used quota for every run
 used_quota_this_run: int = 0
@@ -900,9 +904,9 @@ def download_videos():
     if playlist_id is None:
         logger.debug("Playlist ID for downloading is None. Getting all videos.")
         if retry_403:
-            videos_not_downloaded = session.query(Video).filter(Video.downloaded == None).filter(or_(Video.online == video_status["online"], Video.online == video_status["hate_speech"], Video.online == video_status["http_403"], Video.online == video_status["unlisted"])).filter(Video.download_required == 1)
+            videos_not_downloaded = session.query(Video).filter(Video.downloaded == None).filter(or_(Video.online == video_status["online"], Video.online == video_status["http_403"], Video.online == video_status["unlisted"])).filter(Video.download_required == 1)
         else:
-            videos_not_downloaded = session.query(Video).filter(Video.downloaded == None).filter(or_(Video.online == video_status["online"], Video.online == video_status["hate_speech"], Video.online == video_status["unlisted"])).filter(Video.download_required == 1)
+            videos_not_downloaded = session.query(Video).filter(Video.downloaded == None).filter(or_(Video.online == video_status["online"], Video.online == video_status["unlisted"])).filter(Video.download_required == 1)
     else:
         logger.debug("Playlist ID for downloading is " + str(playlist_id))
         playlist_internal_id = session.query(Playlist.id).filter(Playlist.playlist_id == playlist_id).scalar()
@@ -993,6 +997,12 @@ def download_videos():
             continue
         if video_file == "not_downloaded":
             video.downloaded = None
+            session.add(video)
+            commit_with_retry()
+            continue
+        if video_file == "removed_by_uploader":
+            video.downloaded = None
+            video.online = video_status["offline"]
             session.add(video)
             commit_with_retry()
             continue
@@ -1155,6 +1165,10 @@ def download_video(video_id, channel_name):
         if "This video has been removed for violating YouTube's Community Guidelines" in str(output.stderr):
             logger.error("This video is blocked in your current country. Try again from different country.")
             downloaded_video_file = "hate_speech"
+            return downloaded_video_file
+        if "This video has been removed by the uploader" in str(output.stderr):
+            logger.error("This video has been removed by uploader")
+            downloaded_video_file = "removed_by_uploader"
             return downloaded_video_file
         if "WARNING: video doesn't have subtitles" in str(output.stderr):
             downloaded_video_file = get_downloaded_video_name(output.stdout)
