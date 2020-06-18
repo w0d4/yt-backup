@@ -108,6 +108,9 @@ GRANT ALL ON mydatabase.* TO 'user' IDENTIFIED BY 'password';
 ### Download all videos from one specific playlist ID
 - `python3 yt-backup.py download_videos --playlist_id`
 
+#### Force refresh playlist for new videos (or all)
+- `python3 yt-backup.py get_video_infos --playlist_id <id> --force_refresh`
+
 All videos which are in database, but not in the channel's playlist anymore, will be marked as offline.
 
 If you want to know if they are completely gone or just private, you should run `python3 yt-backup.py verify_offline_videos`
@@ -213,6 +216,14 @@ CREATE OR REPLACE
 ALGORITHM=UNDEFINED
 VIEW `videos_downloaded_at_date` AS
 SELECT count(0) AS `number`,cast(`videos`.`downloaded` as date) AS `download_date`
+FROM `videos` where `videos`.`downloaded` IS NOT NULL
+GROUP BY cast(`videos`.`downloaded` as date)
+```
+```SQL
+CREATE OR REPLACE
+ALGORITHM=UNDEFINED
+VIEW `size_downloaded_at_date` AS
+SELECT SUM(size)/power(1024,3) AS `size`,cast(`videos`.`downloaded` as date) AS `download_date`
 FROM `videos` where `videos`.`downloaded` IS NOT NULL
 GROUP BY cast(`videos`.`downloaded` as date)
 ```
