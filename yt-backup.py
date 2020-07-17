@@ -66,6 +66,7 @@ parser.add_argument("--enabled", action="store_true", help="Switch to control al
 parser.add_argument("--disabled", action="store_true", help="Switch to control all modes which enables or disables things. Required for modes: toggle_channel_download")
 parser.add_argument("--monitored", action="store", type=int, help="Can be 1 or 0. Is used in modify_playlist context.")
 parser.add_argument("--ignore_429_lock", action="store_true", help="Ignore whether an IP was 429 blocked and continue downloading with it.")
+parser.add_argument("--reset_quota_exceeded_state", action="store_true", help="Resets the quota exceeded state in case something gone wrong during calculation")
 parser.add_argument("--all_meta", action="store_true", help="When adding a channel with --channel-id, all playlists and videos will be downloaded automatically.")
 parser.add_argument("--video_id", action="store", type=str, help="When adding a video with add_video, this must be added as option")
 parser.add_argument("--video_title", action="store", type=str, help="When adding a video with add_video, this could be added as option")
@@ -133,6 +134,7 @@ video_description = args.video_description
 video_upload_date = args.video_upload_date
 print_quota = args.print_quota
 force_refresh = args.force_refresh
+reset_quota_exceeded_state = args.reset_quota_exceeded_state
 
 # define video status
 video_status = {"offline": 0, "online": 1, "http_403": 2, "hate_speech": 3, "unlisted": 4}
@@ -1217,7 +1219,7 @@ def rclone_upload():
     log_operation(end_time - start_time, "rclone_upload", "Uploaded files to rclone remote")
 
 
-def toggle_download_requirement_by_username():
+def toggle_download_requirement():
     # check if one or both arguments for enabled and disabled set
     video = Video()
     if enabled and disabled:
@@ -1226,10 +1228,14 @@ def toggle_download_requirement_by_username():
         logger.error("You have to set either --disabled OR --enabled.")
     # check if username variable is set
     if username is None:
-        logger.error("--username variable is not set")
+        if channel_id is None:
+            logger.error("--username and --channel_id variable is not set")
         return None
-    # Get the channel internal id based on channel name from DB
-    channel_internal_id = str(session.query(Channel.id).filter(Channel.channel_name == username).scalar())
+    if channel_id is None:
+        # Get the channel internal id based on channel name from DB if no channel_id is given
+        channel_internal_id = str(session.query(Channel.id).filter(Channel.channel_name == username).scalar())
+    else:
+        channel_internal_id = str(session.query(Channel.id).filter(Channel.channel_id == channel_id).scalar())
     if channel_internal_id is not None:
         logger.debug("Got channel id " + channel_internal_id + " for Username " + username)
         # Get all playlists which are connected to channel internal ID
@@ -1638,6 +1644,8 @@ def add_playlist():
 signal.signal(signal.SIGINT, signal_handler)
 
 verify_and_update_data_model()
+if reset_quota_exceeded_state:
+    clear_quota_exceeded_state()
 
 if mode == "add_channel":
     add_channel(channel_id)
@@ -1665,7 +1673,7 @@ if mode == "generate_statistics":
     generate_statistics()
 
 if mode == "toggle_channel_download":
-    toggle_download_requirement_by_username()
+    toggle_download_requirement()
 
 if mode == "verify_offline_videos":
     verify_offline_videos()
