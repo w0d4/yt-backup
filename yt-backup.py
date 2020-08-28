@@ -1075,8 +1075,8 @@ def generate_statistics(all_stats=False):
         statistics = "archive_size,videos_monitored,videos_downloaded"
     if "archive_size" in statistics:
         start_time = get_current_timestamp()
-        rclone_size_command = (config["rclone"]["binary_path"] + " size " + repr(config["rclone"]["upload_target"] + ":" + config["rclone"]["upload_base_path"]) + " --json" + \
-                              " --config " + repr(config["rclone"]["config_path"]) if config["rclone"]["config_path"] != "" else "")
+        rclone_size_command = config["rclone"]["binary_path"] + " size " + repr(config["rclone"]["upload_target"] + ":" + config["rclone"]["upload_base_path"]) + " --json" + \
+                              (" --config " + repr(config["rclone"]["config_path"]) if config["rclone"]["config_path"] != "" else "")
 
         logger.debug("rclone size command is: " + rclone_size_command)
         logger.info("Getting rclone size of complete archive dir")
