@@ -1214,8 +1214,9 @@ def rclone_upload():
     set_status("uploading")
     rclone_upload_command = config["rclone"]["binary_path"] + \
                             (" --config " + repr(config["rclone"]["config_path"]) if config["rclone"]["config_path"] != "" else "") + \
-                            config["base"]["download_dir"] + " " + config["rclone"]["upload_target"] + ":" + config["rclone"]["upload_base_path"] + \
-                            " --delete-empty-src-dirs "
+                            (" " + config["rclone"]["move_or_copy"] + " " if config["rclone"]["move_or_copy"] in ("move", "copy") else " move ") + \
+                            repr(config["base"]["download_dir"]) + " " + repr(config["rclone"]["upload_target"] + ":" + config["rclone"]["upload_base_path"]) + \
+                            (" --delete-empty-src-dirs " if config["rclone"]["move_or_copy"] in ("move", "") else "")
 
     logger.debug("rclone upload command is: " + rclone_upload_command)
     logger.info("Uploading files to rclone remote")
