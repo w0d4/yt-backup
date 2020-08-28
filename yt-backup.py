@@ -1076,6 +1076,8 @@ def generate_statistics(all_stats=False):
     if "archive_size" in statistics:
         start_time = get_current_timestamp()
         rclone_size_command = config["rclone"]["binary_path"] + " size " + config["rclone"]["upload_target"] + ":" + config["rclone"]["upload_base_path"] + " --json"
+        if config["rclone"]["config_path"] != "":
+            rclone_size_command += " --config " + repr(config["rclone"]["config_path"])
         logger.debug("rclone size command is: " + rclone_size_command)
         logger.info("Getting rclone size of complete archive dir")
         output = subprocess.run(rclone_size_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -1212,6 +1214,8 @@ def rclone_upload():
     start_time = get_current_timestamp()
     set_status("uploading")
     rclone_upload_command = config["rclone"]["binary_path"] + " move " + config["base"]["download_dir"] + " " + config["rclone"]["upload_target"] + ":" + config["rclone"]["upload_base_path"] + " --delete-empty-src-dirs"
+    if config["rclone"]["config_path"] != "":
+        rclone_upload_command += " --config " + repr(config["rclone"]["config_path"])
     logger.debug("rclone upload command is: " + rclone_upload_command)
     logger.info("Uploading files to rclone remote")
     os.system(rclone_upload_command)
