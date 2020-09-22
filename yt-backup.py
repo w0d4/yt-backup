@@ -897,7 +897,7 @@ def remove_youtube_video_from_archive_file(local_video_id: str):
 
 
 def download_videos():
-    # Online States: 1 = online, 2 = 403 error, 3 = blocked in countries because hate speech
+    # Online States: 0 = offline, 1 = online, 2 = 403 error, 3 = blocked in countries because hate speech
     if os.path.exists(config["base"]["download_lockfile"]):
         logger.error("Download lockfile is exisiting. If this is from aborted process, please remove " + config["base"]["download_lockfile"])
         return None
@@ -1014,6 +1014,12 @@ def download_videos():
             commit_with_retry()
             continue
         if video_file == "removed_by_uploader":
+            video.downloaded = None
+            video.online = video_status["offline"]
+            session.add(video)
+            commit_with_retry()
+            continue
+        if video_file == "offline":
             video.downloaded = None
             video.online = video_status["offline"]
             session.add(video)
@@ -1182,6 +1188,18 @@ def download_video(video_id, channel_name):
         if "This video has been removed by the uploader" in str(output.stderr):
             logger.error("This video has been removed by uploader")
             downloaded_video_file = "removed_by_uploader"
+            return downloaded_video_file
+        if "This video is not available" in str(output.stderr):
+            logger.error("This video is not available anymore")
+            downloaded_video_file = "offline"
+            return downloaded_video_file
+        if "Video unavailable" in str(output.stderr):
+            logger.error("This video is not available anymore")
+            downloaded_video_file = "offline"
+            return downloaded_video_file
+        if "This video has been removed" in str(output.stderr):
+            logger.error("This video has been removed")
+            downloaded_video_file = "offline"
             return downloaded_video_file
         if "WARNING: video doesn't have subtitles" in str(output.stderr):
             downloaded_video_file = get_downloaded_video_name(output.stdout)
