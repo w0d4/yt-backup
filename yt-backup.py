@@ -67,6 +67,7 @@ parser.add_argument("--disabled", action="store_true", help="Switch to control a
 parser.add_argument("--monitored", action="store", type=int, help="Can be 1 or 0. Is used in modify_playlist context.")
 parser.add_argument("--ignore_429_lock", action="store_true", help="Ignore whether an IP was 429 blocked and continue downloading with it.")
 parser.add_argument("--reset_quota_exceeded_state", action="store_true", help="Resets the quota exceeded state in case something gone wrong during calculation")
+parser.add_argument("--reset_429_state", action="store_true", help="Resets the last 429 state in case something gone wrong with 429 detection")
 parser.add_argument("--all_meta", action="store_true", help="When adding a channel with --channel-id, all playlists and videos will be downloaded automatically.")
 parser.add_argument("--video_id", action="store", type=str, help="When adding a video with add_video, this must be added as option")
 parser.add_argument("--video_title", action="store", type=str, help="When adding a video with add_video, this could be added as option")
@@ -135,6 +136,7 @@ video_upload_date = args.video_upload_date
 print_quota = args.print_quota
 force_refresh = args.force_refresh
 reset_quota_exceeded_state = args.reset_quota_exceeded_state
+reset_429_state = args.reset_429_state
 
 # define video status
 video_status = {"offline": 0, "online": 1, "http_403": 2, "hate_speech": 3, "unlisted": 4}
@@ -264,6 +266,15 @@ def clear_http_429_state():
     http_429_state.statistic_value = ""
     session.add(http_429_state)
     session.commit()
+
+
+def reset_http_429_state():
+    http_429_state = session.query(Statistic).filter(Statistic.statistic_type == "http_429_state").scalar()
+    if http_429_state is None:
+        return None
+    session.delete(http_429_state)
+    session.commit()
+    logger.info("HTTP 429 state has been deleted.")
 
 
 def get_http_429_state():
@@ -1646,6 +1657,9 @@ signal.signal(signal.SIGINT, signal_handler)
 verify_and_update_data_model()
 if reset_quota_exceeded_state:
     clear_quota_exceeded_state()
+
+if reset_429_state:
+    reset_http_429_state()
 
 if mode == "add_channel":
     add_channel(channel_id)
