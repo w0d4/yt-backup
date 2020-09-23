@@ -1205,6 +1205,14 @@ def download_video(video_id, channel_name):
             downloaded_video_file = get_downloaded_video_name(output.stdout)
             logger.debug("Video name is " + downloaded_video_file)
             return downloaded_video_file
+        if "Unable to extract video data" in str(output.stderr):
+            logger.error("This video has been removed")
+            downloaded_video_file = "offline"
+            return downloaded_video_file
+        if "Playback on other websites has been disabled by the video owner" in str(output.stderr):
+            logger.error("Playback on other websites has been disabled by the video owner")
+            downloaded_video_file = "video_forbidden"
+            return downloaded_video_file
 
 
     if "has already been recorded in archive" in str(output.stdout):
