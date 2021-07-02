@@ -133,6 +133,11 @@ All videos which are marked as offline in database will be checked in packages o
 - `python3 yt-backup.py verify_channels`
 This will check all channel IDs against youtube API if they are still online. If not, they will be set offline. Also all playlists and videos of the channels.
 
+### Reset YouTube API quota information
+- `python3 yt-backup.py --reset_quota_exceeded_state`
+Resets the quota exceeded state in case something gone wrong during calculation
+
+
 ### List channels with playlists
 #### For all channels
 - `python3 yt-backup.py list_playlists`
