@@ -529,7 +529,7 @@ def add_channel(local_channel_id):
         if channel_name is None:
             logger.error("Got no answer from google. I will skip this.")
             return None
-        if "channel_naming" in config["base"] and config["base"]["channel_naming"] is not "":
+        if "channel_naming" in config["base"] and config["base"]["channel_naming"] != "":
             logger.debug("Found channel name template in config")
             channel.channel_name = str(config["base"]["channel_naming"]).replace("%channel_name", channel_name).replace(("%channel_id"), local_channel_id)
         else:
@@ -1562,7 +1562,7 @@ def modify_playlist():
                 j = 0
                 check_video_ids_for_upload_date(video_ids_to_check, playlist.download_from_date)
                 video_ids_to_check = ""
-    if monitored is 1 or monitored is 0:
+    if monitored == 1 or monitored == 0:
         playlist.monitored = monitored
         logger.info('Set monitored flag of the playlist to ' + str(playlist.monitored))
     session.add(playlist)
