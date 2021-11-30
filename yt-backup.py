@@ -347,13 +347,22 @@ def check_quota_exceeded_state():
 
 
 def get_current_ytdl_ip():
-    if config["youtube-dl"]["proxy"] != "":
-        proxies = {"http": config["youtube-dl"]["proxy"], "https": config["youtube-dl"]["proxy"]}
-        r = requests.get("https://ipinfo.io", proxies=proxies)
-    else:
-        r = requests.get("https://ipinfo.io")
-    answer = json.loads(str(r.text))
-    current_ytdl_ip = answer["ip"]
+    for i in range(0, 100):
+        try:
+            if config["youtube-dl"]["proxy"] != "":
+                proxies = {"http": config["youtube-dl"]["proxy"], "https": config["youtube-dl"]["proxy"]}
+                r = requests.get("https://ipinfo.io", proxies=proxies)
+            else:
+                r = requests.get("https://ipinfo.io")
+            answer = json.loads(str(r.text))
+            current_ytdl_ip = answer["ip"]
+        except ConnectionError:
+            current_ytdl_ip = "0.0.0.0"
+            sleep(10)
+            continue
+        finally:
+            remove_download_lockfile()
+        break
     return current_ytdl_ip
 
 
