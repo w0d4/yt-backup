@@ -24,3 +24,4 @@ class Channel(Base):
     channel_id = Column(String(255), nullable=False, unique=True)
     channel_name = Column(String(255), nullable=False)
     offline = Column(Integer)
+    channel_country = Column(String(255), nullable=True)

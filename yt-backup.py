@@ -15,28 +15,27 @@
 
 
 import argparse
+import googleapiclient.discovery
+import googleapiclient.errors
 import json
 import logging
 import os
 import pickle
 import re
+import requests
 import shutil
 import signal
+import sqlalchemy
 import subprocess
 import sys
 import time
 from datetime import datetime
-from pathlib import Path
-from random import randint
-from time import sleep
-
-import googleapiclient.discovery
-import googleapiclient.errors
-import requests
-import sqlalchemy
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
+from pathlib import Path
+from random import randint
 from sqlalchemy import func, or_
+from time import sleep
 
 from base import Session, engine, Base
 from channel import Channel
@@ -469,13 +468,15 @@ def get_channel_playlists(local_channel_id, monitored=1):
                 modify_playlist()
 
 
-def get_channel_name_from_google(local_channel_id):
+def get_channel_name_and_country_from_google(local_channel_id):
     # Check for exceeded google quota
+    channel_name = None
+    channel_country = None
     if check_quota_exceeded_state():
         logger.error("Cannot proceed with getting data from youtube API. Quota exceeded.")
         return None
     youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
-    logger.debug("Excuting youtube API call for getting channel name")
+    logger.debug("Excuting youtube API call for getting channel name and country")
     request = youtube.channels().list(part="brandingSettings", id=local_channel_id)
     try:
         response = request.execute()
@@ -486,11 +487,12 @@ def get_channel_name_from_google(local_channel_id):
         return None
     try:
         channel_name = str(response["items"][0]["brandingSettings"]["channel"]["title"])
+        channel_country = str(response["items"][0]["brandingSettings"]["channel"]["country"])
     except KeyError:
         logger.error("No channel with this id could be found on youtube.")
         return None
     logger.debug("Got channel name " + channel_name + " from google.")
-    return channel_name
+    return {"channel_name": channel_name, "channel_country": channel_country}
 
 
 def get_channel_id_from_google(local_username):
@@ -534,15 +536,22 @@ def add_channel(local_channel_id):
         logger.info("Found custom channel name " + str(username) + ". Will not request official channel name from youtube API")
         channel.channel_name = str(username)
     else:
-        channel_name = get_channel_name_from_google(local_channel_id)
+        channel_name_and_country = get_channel_name_from_google(local_channel_id)
+        if channel_name_and_country is None:
+            logger.error("Got no answer from google. I will skip this.")
+            return None
+        channel_name = channel_name_and_country['channel_name']
+        channel_country = channel_name_and_country['channel_country']
         if channel_name is None:
             logger.error("Got no answer from google. I will skip this.")
             return None
         if "channel_naming" in config["base"] and config["base"]["channel_naming"] != "":
             logger.debug("Found channel name template in config")
-            channel.channel_name = str(config["base"]["channel_naming"]).replace("%channel_name", channel_name).replace(("%channel_id"), local_channel_id)
+            channel.channel_name = str(config["base"]["channel_naming"]).replace("%channel_name", channel_name).replace(
+                ("%channel_id"), local_channel_id)
         else:
             channel.channel_name = channel_name
+        channel.channel_country = channel_country
     # secure channel name
     if "/" in channel.channel_name:
         channel.channel_name = channel.channel_name.replace("/", "_")
@@ -749,6 +758,7 @@ def get_changed_playlists(playlists):
                 return None
             logger.debug("Calling youtube API for playlist etags")
             logger.debug("Got " + str(len(response["items"])) + " entries back")
+            logger.debug(str(response))
             for entry in response["items"]:
                 plid = entry["id"]
                 etag = entry["etag"]
@@ -1003,7 +1013,7 @@ def download_videos():
                 break
             if config["youtube-dl"]["proxy"] != "":
                 restart_proxy()
-                sleep(10)
+                sleep(20)
                 current_country = get_current_country()
             continue
         if video_file == "video_forbidden":
@@ -1632,6 +1642,82 @@ def verify_and_update_data_model():
         session.add(current_data_model_version_stat)
         session.commit()
 
+    current_data_model_version_stat: Statistic = session.query(Statistic).filter(
+        Statistic.statistic_type == "data_model_version").scalar()
+    logger.debug("Current data model: " + str(current_data_model_version_stat))
+    if current_data_model_version_stat.statistic_value == "3":
+        logger.debug("Current data model is None. Updating to v4.")
+        current_data_model_version = 4
+        current_data_model_version_stat.statistic_value = str(current_data_model_version)
+        current_data_model_version_stat.statistic_type = "data_model_version"
+        current_data_model_version_stat.statistic_date = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        with engine.connect() as con:
+            try:
+                rs = con.execute(
+                    'ALTER TABLE channels ADD channel_country VARCHAR(255) NULL DEFAULT NULL AFTER offline; ')
+                logger.info("Data model has been updated to " + str(current_data_model_version))
+                session.add(current_data_model_version_stat)
+                session.commit()
+            except sqlalchemy.exc.OperationalError:
+                logger.info("Table columns are already existing.")
+        add_missing_channel_countries()
+
+
+def add_missing_channel_countries():
+    channels_without_country = session.query(Channel).filter(Channel.channel_country == None).all()
+    if channels_without_country is None:
+        pass
+    else:
+        logger.debug(
+            "Found " + str(len(channels_without_country)) + " channels which do not have a country attribute yet")
+        i = 0
+        j = 0
+        google_api_id_limit = 50
+        channel_ids_to_check = ""
+        while i < len(channels_without_country):
+            if j != 0:
+                channel_ids_to_check = channel_ids_to_check + ","
+            channel_ids_to_check = str(channel_ids_to_check + channels_without_country[i].channel_id)
+            logger.debug(
+                "Found channel ID " + str(channels_without_country[i].channel_id) + " in channels without country.")
+            i += 1
+            j += 1
+            if j == google_api_id_limit or i == len(channels_without_country):
+                j = 0
+                check_channel_countries(channel_ids_to_check)
+                channel_ids_to_check = ""
+
+
+def check_channel_countries(channel_ids):
+    youtube = googleapiclient.discovery.build(api_service_name, api_version, credentials=get_google_api_credentials())
+    logger.debug("Excuting youtube API call for getting channel name and country")
+    request = youtube.channels().list(part="brandingSettings", id=channel_ids)
+    try:
+        response = request.execute()
+        add_quota(3)
+    except googleapiclient.errors.HttpError as error:
+        if "The request cannot be completed because you have exceeded your" in str(error):
+            set_quota_exceeded_state()
+        return None
+    for item in response["items"]:
+        local_channel_id = item["id"]
+        youtube_channel_name = item["brandingSettings"]["channel"]["title"]
+        # logger.debug(item)
+        # some channels do not have any country information set
+        # we have to skip them
+        try:
+            channel_country = item["brandingSettings"]["channel"]["country"]
+        except KeyError:
+            logger.warning(f"Could not get a country from youtube API for channel {youtube_channel_name}")
+            continue
+        channel = session.query(Channel).filter(Channel.channel_id == local_channel_id).scalar()
+        if channel is None:
+            continue
+        channel.channel_country = channel_country
+        logger.debug(f"Found {channel_country} for channel {channel.channel_name}.")
+        session.add(channel)
+    session.commit()
+
 
 def modify_channel():
     if username == None:
@@ -1723,6 +1809,7 @@ if mode == "run":
     get_video_infos()
     download_videos()
     verify_offline_videos()
+    add_missing_channel_countries()
     generate_statistics(True)
 
 if mode == "generate_statistics":
