@@ -1047,13 +1047,18 @@ def download_videos():
         # get all the needed video infos
         # check if video is really there
         if not os.path.isfile(video_file):
-            logger.error("Could not find the downloaded video file. Maybe there was a problem during download. Will retry in next run.")
+            logger.error(
+                "Could not find the downloaded video file. Maybe there was a problem during download. Will retry in next run.")
             continue
         video.downloaded = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
         video.runtime = get_video_duration(video_file)
         logger.debug("Video runtime was set to " + str(video.runtime) + " seconds")
         video.resolution = get_video_resolution(video_file)
         logger.debug("Video resolution was set to " + str(video.resolution))
+        if video.runtime is None and video.resolution is None:
+            logger.warning(
+                "The video file is incomplete. Will skip uploading and let the video on not downloaded state.")
+            continue
         try:
             video.size = os.path.getsize(video_file)
         except:
