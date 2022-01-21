@@ -536,7 +536,7 @@ def add_channel(local_channel_id):
         logger.info("Found custom channel name " + str(username) + ". Will not request official channel name from youtube API")
         channel.channel_name = str(username)
     else:
-        channel_name_and_country = get_channel_name_from_google(local_channel_id)
+        channel_name_and_country = get_channel_name_and_country_from_google(local_channel_id)
         if channel_name_and_country is None:
             logger.error("Got no answer from google. I will skip this.")
             return None
