@@ -487,10 +487,13 @@ def get_channel_name_and_country_from_google(local_channel_id):
         return None
     try:
         channel_name = str(response["items"][0]["brandingSettings"]["channel"]["title"])
-        channel_country = str(response["items"][0]["brandingSettings"]["channel"]["country"])
     except KeyError:
         logger.error("No channel with this id could be found on youtube.")
         return None
+    try:
+        channel_country = str(response["items"][0]["brandingSettings"]["channel"]["country"])
+    except KeyError:
+        logger.warning("This channel has no origin country information.")
     logger.debug("Got channel name " + channel_name + " from google.")
     return {"channel_name": channel_name, "channel_country": channel_country}
 
@@ -537,6 +540,7 @@ def add_channel(local_channel_id):
         channel.channel_name = str(username)
     else:
         channel_name_and_country = get_channel_name_and_country_from_google(local_channel_id)
+        logger.debug(str(channel_name_and_country))
         if channel_name_and_country is None:
             logger.error("Got no answer from google. I will skip this.")
             return None
@@ -559,6 +563,10 @@ def add_channel(local_channel_id):
     # add channel to channel table
     if session.query(Channel).filter(Channel.channel_id == local_channel_id).scalar() is None:
         logger.info("Added Channel " + channel.channel_name + " to database.")
+        try:
+            logger.info("Channel has origin country " + channel.channel_country)
+        except TypeError:
+            pass
         session.add(channel)
         session.commit()
     else:
