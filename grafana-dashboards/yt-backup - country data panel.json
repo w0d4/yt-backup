@@ -1,0 +1,122 @@
+{
+  "id": 34,
+  "gridPos": {
+    "h": 18,
+    "w": 15,
+    "x": 9,
+    "y": 19
+  },
+  "type": "geomap",
+  "title": "Panel Title",
+  "datasource": {
+    "type": "mysql",
+    "uid": "000000007"
+  },
+  "pluginVersion": "9.0.0",
+  "description": "",
+  "fieldConfig": {
+    "defaults": {
+      "custom": {
+        "hideFrom": {
+          "tooltip": false,
+          "viz": false,
+          "legend": false
+        }
+      },
+      "mappings": [],
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          {
+            "color": "green",
+            "value": null
+          },
+          {
+            "color": "red",
+            "value": 80
+          }
+        ]
+      },
+      "color": {
+        "mode": "thresholds"
+      }
+    },
+    "overrides": []
+  },
+  "options": {
+    "view": {
+      "id": "zero",
+      "lat": 0,
+      "lon": 0,
+      "zoom": 1
+    },
+    "controls": {
+      "showZoom": true,
+      "mouseWheelZoom": true,
+      "showAttribution": true,
+      "showScale": false,
+      "showDebug": false
+    },
+    "basemap": {
+      "config": {},
+      "name": "Layer 0",
+      "type": "default"
+    },
+    "layers": [
+      {
+        "config": {
+          "color": {
+            "fixed": "dark-green"
+          },
+          "fillOpacity": 0.6,
+          "shape": "circle",
+          "showLegend": true,
+          "size": {
+            "field": "count",
+            "fixed": 5,
+            "max": 15,
+            "min": 2
+          }
+        },
+        "location": {
+          "geohash": "channel_country",
+          "lookup": "channel_country",
+          "mode": "lookup"
+        },
+        "name": "Layer 1",
+        "type": "markers"
+      }
+    ]
+  },
+  "targets": [
+    {
+      "format": "table",
+      "group": [],
+      "hide": false,
+      "metricColumn": "none",
+      "rawQuery": true,
+      "rawSql": "SELECT channel_country as channel_country, COUNT(*) as count FROM `channels` WHERE channel_country IS NOT NULL GROUP BY channel_country;",
+      "refId": "A",
+      "select": [
+        [
+          {
+            "params": [
+              "id"
+            ],
+            "type": "column"
+          }
+        ]
+      ],
+      "table": "operations",
+      "timeColumn": "operation_date",
+      "timeColumnType": "timestamp",
+      "where": [
+        {
+          "name": "$__timeFilter",
+          "params": [],
+          "type": "macro"
+        }
+      ]
+    }
+  ]
+}
